@@ -1,5 +1,14 @@
+
+import io
 import os
-from .. import SciID
+import re
+import pdb
+import pathlib
+
+import sciid
+from .. import exc
+from ..logger import sciid_logger as logger
+from .. import SciID, SciIDFileResource, Resolver
 from . import SciIDResolverAstro
 
 compression_extensions = [".zip", ".tgz", ".gz", "bz2"]
@@ -11,12 +20,27 @@ class SciIDAstro(SciID):
 	:param sciid: a SciID identifier or one assumed to have "sciid:/astro" prepended to it
 	:param resolver: an object that can resolve the identifier to a URL; for most cases using the default resolver by passing 'None' is the right choice
 	'''
-	def __init__(self, id_:str=None, resolver=SciIDResolverAstro.default_resolver()):
-		print("sciidastro __init__")
-		if not id_.startswith("sciid:/astro/") and id_.startswith("/"):
+	def __init__(self, sci_id:str=None, resolver:Resolver=None):
+		if not sci_id.startswith("sciid:/astro/") and sci_id.startswith("/"):
 			# allow abbreviated form
-			id_ = "sciid:/astro" + id_
-		super().__init__(id_=id_, resolver=resolver)
+			sci_id = "sciid:/astro" + sci_id
+		if resolver is None:
+			resolver = SciIDResolverAstro.default_resolver()
+		
+		super().__init__(sci_id=sci_id, resolver=resolver)
+		
+		self._dataset = None # cache value
+		
+	def __new__(cls, sci_id:str=None, resolver:Resolver=None):
+		'''
+		If the SciID passed into the constructor can be identified as being handled by a specialized subclass, that subclass is instantiated.
+		'''
+		if cls is SciIDAstro:
+			if sci_id.startswith("sciid:/astro/data/"):
+				return super().__new__(sciid.astro.SciIDAstroData)
+			elif sci_id.startswith("sciid:/astro/file/"):
+				return super().__new__(sciid.astro.SciIDAstroFile)
+		return super().__new__(cls)
 	
 	@property
 	def is_valid(self):
@@ -32,24 +56,21 @@ class SciIDAstro(SciID):
 		
 		The short label can be used to get the dataset object, e.g. "galex" -> Dataset.from_short_name("galex")
 		'''
-		return str(self.sciid).split("/")[1] # first string after "data/"
-	
-	# def __new__(cls, sciid:str=None, resolver=None):
-	# 	'''
-	# 	'''
-	# 	if sciid.startswith("sciid:/astro/data/"):
-	# 		return SciIDAstroData(sciid=sciid)
-	# 	elif sciid.startswith("sciid:/astro/file/"):
-	# 		return SciIDAstroFile(sciid=sciid)
+		if self._dataset is None:
+			match = re.search("^sciid:/astro/(data|file)/([^/]+)", self.sciid)
+			if match:
+				self._dataset = match.group(2)
+		return self._dataset
+#		return str(self.sciid).split("/")[3] # first string after "data/"
 	
 class SciIDAstroData(SciIDAstro):
 	'''
 	An identifier pointing to data in the astronomy namespace ("sciid:/astro/data/").
 	'''
-	def __init__(self, id_:str=None, resolver=None):
-		if id_.startswith("sciid:") and not id_.startswith("sciid:/astro/data/"):
-			raise exc.SciIDClassMismatch(f"Attempting to create {self.__class__} object with a SciID that does not begin with 'sciid:/astro/data/'; try using the 'SciID(id_)' factory constructor instead.")
-		super().__init__(id_=id_, resolver=resolver)
+	def __init__(self, sci_id:str=None, resolver:Resolver=None):
+		if sci_id.startswith("sciid:") and not sci_id.startswith("sciid:/astro/data/"):
+			raise exc.SciIDClassMismatch(f"Attempting to create {self.__class__} object with a SciID that does not begin with 'sciid:/astro/data/'; try using the 'SciID(sci_id)' factory constructor instead.")
+		super().__init__(sci_id=sci_id, resolver=resolver)
 	
 	def is_file(self) -> bool:
 		''' Returns 'True' if this identifier points to a file. '''
@@ -60,13 +81,31 @@ class SciIDAstroData(SciIDAstro):
 		Performs basic validation of the syntax of the identifier; a returned value of 'True' does not guarantee a resource will be found.
 		'''
 		return self.sciid.startswith("sciid:/astro/data/")
-		
 	
-	
-class SciIDAstroFile(SciIDAstro):
+class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 	'''
 	An identifier pointing to a file in the astronomy namespace ("sciid:/astro/file/").
 	'''
+	
+	def __init__(self, sci_id:str=None, resolver:Resolver=None):
+		SciIDAstro.__init__(self, sci_id=sci_id, resolver=resolver)
+		SciIDFileResource.__init__(self)
+	
+	@property
+	def path_within_cache(self):
+		'''
+		The directory path within the top level SciID cache where the file would be written when downloaded, not including filename.
+		'''
+		if self._cache_path is None:
+			match = re.search("^/astro/file/(.+)#?", str(pathlib.Path(self.path)))
+			if match:
+				path_components = pathlib.Path(match.group(1)).parts[0:-1] # omit last part (filename)
+				self._cache_path = os.path.join("astro", *path_components)
+			else:
+				raise NotImplementedError()
+			logger.debug(f" --> {self._cache_path}")
+		return self._cache_path
+	
 	def is_file(self) -> bool:
 		''' Returns 'True' if this identifier points to a file. '''
 		return True
@@ -97,4 +136,15 @@ class SciIDAstroFile(SciIDAstro):
 		else:
 			return None
 			
-	
+	@property
+	def url(self) -> str:
+		'''
+		Returns a specific location (URL) that points to the resource described by this SciID using the `sciid.Resolver` assigned to this object.
+		'''
+		if self._url is None:
+			if self.resolver is None:
+				raise exc.NoResolverAssignedException("Attempting to resolve a SciID without having first set a resolver object.")
+			
+			self._url = self.resolver.url_for_sciid(self)
+		return self._url
+

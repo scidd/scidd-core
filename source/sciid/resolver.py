@@ -1,7 +1,8 @@
 
-from abc import abstractmethod
 
-class Resolver:
+from abc import ABC, abstractmethod
+
+class Resolver(ABC):
 	'''
 	This class resolves SciIDs into URLs that point to the resource.
 	'''
@@ -11,32 +12,35 @@ class Resolver:
 		self.scheme = scheme
 		self.host = host
 		self.port = port
-		
+		self._base_url = None
+				
 	def __repr__(self):
 		return "<{} object at {} '{}://{}:{}'>".format(self.__class__.__name__, hex(id(self)), self.scheme, self.host, self.port)
 
 	@property
 	def base_url(self):
-		if self.port is None:
-			if self.scheme == "https":
-				port = 443
+		if self._base_url is None:
+			if self.port is None:
+				if self.scheme == "https":
+					port = 443
+				else:
+					port = 80
+					self._base_url = f"{scheme}://{self.host}"
 			else:
-				port = 80
-			return f"{scheme}://{self.host}"
-		else:
-			if (self.scheme == "https" and self.port == 443) or (self.scheme == "http" and self.port == 80):
-				return f"{self.scheme}://{self.host}"
-			else:
-				return f"{self.scheme}://{self.host}:{self.port}"
-	
+				if (self.scheme == "https" and self.port == 443) or (self.scheme == "http" and self.port == 80):
+					self._base_url = f"{self.scheme}://{self.host}"
+				else:
+					self._base_url = f"{self.scheme}://{self.host}:{self.port}"
+		return self._base_url
+		
 	@classmethod
 	def default_resolver(cls):
 		'''
-		This method returns a default resolver that is pre-preconfigured with default values designed to be used out of the box (batteries included).
+		This method returns a default resolver that is preconfigured with default values designed to be used out of the box (batteries included).
 		
 		The implementation is expected to be located in subclasses of this class.
 		'''
-		pass
+		pass # subclass to implement
 		
 	@abstractmethod
 	def url_for_sciid(self, sciid) -> str:

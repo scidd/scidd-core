@@ -1,0 +1,2 @@
+
+from .galex import GALEXResolver
