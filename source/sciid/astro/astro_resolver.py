@@ -1,12 +1,16 @@
 
 import os
 import re
-from typing import Dict
+import json
+from typing import Dict, List, Union
 
 import requests
 
 import sciid
+from .. import exc
+from ..cache import LocalAPICache
 from .dataset.galex import GALEXResolver
+from .dataset.wise import WISEResolver
 from ..logger import sciid_logger as logger
 
 class SciIDResolverAstro(sciid.Resolver):
@@ -37,7 +41,7 @@ class SciIDResolverAstro(sciid.Resolver):
 			cls._default_instance = cls(host=host, port=port)
 		return cls._default_instance
 	
-	def get(self, path:str=None, params:dict={}, data:dict={}, headers:Dict[str,str]=None) -> dict:
+	def get(self, path:str=None, params:dict={}, data:dict={}, headers:Dict[str,str]=None) -> Union[Dict,List]:
 		'''
 		Make a GET call on the Trillian API with the given path and parameters.
 		
@@ -51,10 +55,17 @@ class SciIDResolverAstro(sciid.Resolver):
 			raise ValueError("A path must be provided to make an API call.")
 		
 		with requests.Session() as http_session:
-			logger.debug(f"API Request: {self.base_url + path}")
 			response = http_session.get(self.base_url + path, params=params)
-			logger.debug(f"API Request: '{response.url}'")
-			response.raise_for_status()
+			logger.debug(f"API request URL: '{response.url}'")
+			
+			try:
+				response.raise_for_status()
+			except requests.HTTPError as e:
+				try:
+					err_msg = response.json()["errors"][0]["message"]
+				except:
+					err_msg = response.json()
+				raise exc.TrillianAPIException(f"An error occurred accessing the Trillian API: {err_msg}")
 			
 			return response.json()
 	
@@ -76,10 +87,12 @@ class SciIDResolverAstro(sciid.Resolver):
 			raise NotImplementedError()
 		elif isinstance(sci_id, sciid.astro.SciIDAstroFile):
 			#print(f"dataset = {sci_id.dataset}")
-			if sci_id.dataset == "galex":
+			if sci_id.dataset.split(".")[0] == "galex":
 				url = GALEXResolver().resolve_filename_from_id(sci_id)
-			elif sci_id.dataset == "wise":
+			elif sci_id.dataset.split(".")[0] == "wise":
 				url = WISEResolver().resolve_filename_from_id(sci_id)
+			else:
+				raise NotImplementedError(f"The dataset '{sci_id.dataset}' does not currently have a resolver associated with it.")
 		else:
 			raise NotImplementedError(f"Class {type(sci_id)} not handled in {self.__class__}.")
 				
@@ -124,17 +137,32 @@ class SciIDResolverAstro(sciid.Resolver):
 		
 		raise NotImplementedError()
 
-	def generic_filename_resolver(self, dataset:str=None, release:str=None, filename:str=None) -> str:
+	def generic_filename_resolver(self, dataset:str=None, release:str=None, filename:str=None) -> List[dict]:
 		'''
-		This method calls the Trillian API to search for a given filename, Dataset and release names are optional.
+		This method calls the Trillian API to search for a given filename; dataset and release names are optional.
 		'''
+		CACHE_KEY = "/".join(["astro:file", str(dataset), str(release), str(filename)])
+
+		try:
+			results = json.loads(LocalAPICache.defaultCache()[CACHE_KEY])
+			logger.debug("API cache hit")
+			return result
+		except KeyError:
+			query_parameters = { "filename" : filename }
+			if dataset:
+				query_parameters["dataset"] = dataset
+			if release:
+				query_parameters["release"] = release
+			results = self.get("/astro/data/filename-search", params=query_parameters)
+			
+			try:
+				LocalAPICache.defaultCache()[CACHE_KEY] = json.dumps(results)
+			except Exception as e:
+				raise e # remove after debugging
+				logger.debug(f"Note: exception in trying to save API response to cache: {e}")
+				pass
 		
-		query_parameters = { "filename" : filename }
-		if dataset:
-			query_parameters["dataset"] = dataset
-		if release:
-			query_parameters["release"] = release
-		return self.get("/astro/data/filename-search", params=query_parameters)
+		return results
 
 
 

@@ -20,7 +20,7 @@ class DatasetResolverBase(ABC):
 
 	@abstractproperty
 	def releases(self):
-		return self._dataset
+		return NotImplementedError("")
 
 	def resolve_filename_from_id(self, sci_id) -> str:
 		return self.resolve_filename_from_release(sci_id=sci_id, dataset=self.dataset, releases=self.releases)

@@ -1,25 +1,31 @@
 
+from __future__ import annotations # remove in Python 4.0
+# Needed for forward references, see:
+# https://stackoverflow.com/a/33533514/2712652
+
 import io
 import os
 import bz2
-#import pdb
+import pdb
 import gzip
+import httpx
 import shutil
 import pathlib
 from typing import Union
 from zipfile import ZipFile
 from abc import ABC, abstractproperty, abstractmethod
 
+import astropy
 import requests
 
 import sciid
 from . import exc
-from .cache import SciIDCache
+from .cache import SciIDCacheManager, SciIDCacheManagerBase
 from .resolver import Resolver
 from .logger import sciid_logger as logger
 
 # list of file extensions that we treat as compressed files
-COMPRESSED_FILE_EXTENSIONS = [".zip", ".gz", ".bz2"]
+COMPRESSED_FILE_EXTENSIONS = [".gz", ".bz2", ".zip"]
 
 class SciID(): #, metaclass=SciIDMetaclass):
 	'''
@@ -30,12 +36,14 @@ class SciID(): #, metaclass=SciIDMetaclass):
 	def __init__(self, sci_id:str=None, resolver=None):
 		if sci_id is None:
 			raise ValueError("An identifier must be provided.")
-		self.sciid = sci_id
+		if isinstance(sci_id, dict):
+			raise ValueError("The 'sci_id' value should be a string, not a dictionary. Maybe you forgot to extract the value from an API result?")
+		self._sciid = sci_id # string representation of the identifier
 		self.resolver = resolver
 		self._url = None # a place to cache a URL once the record has been resolved
-
+		
 		# note: only minimal validation is being performed
-		if self.is_valid is False:
+		if self.is_valid() is False:
 			raise ValueError("The provided identifier was not validated as a valid SciID.")
 			
 		# set the resolver
@@ -48,7 +56,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		'''
 		# Useful ref: https://stackoverflow.com/a/5953974/2712652
 		if cls is SciID:
-			if sci_id.startswith("sciid:/astro"):
+			if str(sci_id).startswith("sciid:/astro"):
 				from sciid.astro import SciIDAstro
 				return SciIDAstro.__new__(SciIDAstro, sci_id=sci_id, resolver=resolver)
 			# if sci_id.startswith("sciid:/astro/data/"):
@@ -59,12 +67,21 @@ class SciID(): #, metaclass=SciIDMetaclass):
 
 	def __str__(self):
 		# this is useful so one can use str(s), and "s" can be either a string or SciID object.
-		return self.sciid
+		return self._sciid
 	
 	def __repr__(self):
-		return "<{0}.{1} object at {2} '{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self.sciid)
+		return "<{0}.{1} object at {2} '{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self._sciid)
 	
-	@abstractproperty
+	@property
+	def sciid(self):
+		return self._sciid
+	
+	@sciid.setter
+	def sciid(self, new_id):
+		if not isinstance(new_id, str):
+			raise ValueError("The 'sciid' property must be a string.")
+		self._sciid = new_id
+	
 	def is_valid(self) -> bool:
 		'''
 		Performs (very) basic validation of the syntax of the identifier
@@ -76,7 +93,6 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		# sometimes it might be beneficial for overriding classes to call super, other times it's inefficient and redundant.
 		return self.sciid.startswith("sciid:/")
 	
-	@abstractproperty
 	def is_file(self) -> bool:
 		# note: this may not be an easily determined property, but let's assume for now it is
 		# todo: what to return if indeterminate?
@@ -106,30 +122,62 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		Returns the SciID as a string without the scheme prefix (i.e. 'sciid:' removed).
 		'''
 		return str(self).replace('sciid:', '')
+	
+	@property
+	def metadata(self) -> dict:
+		'''
+		Returns metadata of this file as a dictionary. [Format to be determined.]
+		'''
+		raise NotImplementedError()
 		
+	@classmethod
+	def fromFilename(cls, filename:str, domain:str, allow_multiple_results=False) -> SciID:
+		'''
+		A factory method that attempts to return a SciID identifier from a filename alone; depends on domain-specific resolvers.
+		
+		:param filename: the filename to create a SciID identifier from
+		:param domain: the top level domain of the resource, e.g. `astro`: todo: create a .sciid.conf file with a default domain setting
+		:param allow_multiple_results: when True will raise an exception the filename is not unique; if False will always return an array of matching SciIDs.
+		'''
+		if filename is None or len(filename) == 0:
+			raise ValueError("A filename must be provided.")
+		if domain == "astro":
+			from sciid.astro import SciIDAstroFile
+			#return SciIDAstroFile.__new__(SciIDAstro, sci_id=sci_id, resolver=resolver)
+			# .. todo: check here if the path looks like a file in the first place
+			return SciIDAstroFile.fromFilename(filename=filename, allow_multiple_results=allow_multiple_results)
+		else:
+			raise NotImplementedError(f"The top level domain '{domain}' is not currently implemented (the only domain currently implemented is 'astro'.")
 
 class SciIDFileResource:
+	'''
+	This class represents a SciID identifier that specifically points to and helps manage a file resource.
+	'''
+	
+	# Class variables
+	# ---------------
+	# Use this cache manager for all new SciIDs (that point to files, of course).
+	# Note that this is a class variable! Changing it will not change any
+	# previously set cache manager on existing SciIDFileResource objects.
+	_default_cache_manager = SciIDCacheManager.default_cache()
 	
 	def __init__(self):
 		self._filepath = None # store local location
-		self.cache = SciIDCache.default_cache()
-		self._cache_path = None # path to file relative to the top level cache
+		self._filename = None # cache the filesname derivied from the identifier
+		self.read_only_caches = list() # list of SciIDCacheManager objects that point to read-only caches
+
+		if __class__._default_cache_manager is None:
+			self.cache = SciIDCacheManager.default_cache()
+		else:
+			self.cache = __class__._default_cache_manager
 			
-	@property
-	def path_within_cache(self) -> os.PathLike:
-		'''
-		The directory path within the top level SciID cache where the file would be written when downloaded.
+		# information retrieved from the Trillian API, used to test successful download of file, todo: can also use hash but will be slower
+		self._uncompressed_file_size = None
 		
-		This can be domain-specific, e.g. a collection that has millions of files might be better served
-		with a custom scheme. It's recommended to subclass this class for such files.
-		'''
-		raise Exception()
-		if self._cache_path is None:
-			# remove prefix and leading "/"
-			self._cache_path = self.path.parent
-			logger.debug(f" cache_path = {self._cache_path} / {self.path}")
-		return self._cache_path
-	
+		# The path where this file should be placed/found within the provided cache relative to the top level of the cache.
+		# The value is not calculated here, but
+		self._path_within_cache = dict() # key=cache manager obj, value=path; save value per cache object for repeated lookups
+		
 	# @property
 	# def filename_without_compression_extension(self):
 	# 	'''
@@ -142,6 +190,25 @@ class SciIDFileResource:
 	# 	return filename
 	
 	@property
+	def filename(self) -> str:
+		'''
+		The filename the identifier points to. Note that it is not guaranteed to be unique across all identifiers.
+		
+		The filename is the last component of the identifier once the query, fragment, and xxx components are removed from the identifier.
+		For example, given this identifier:
+		    sciid:/astro/data/2mass/allsky/hi0550232.fits;uniqueid=20000116.n.55?a=b
+		
+		The (optional) `;uniqueid=20000116.n.55` fragment is not part of the filename and is delineated by the ';' character.
+		The (optional) query component is delineated by the first `?`.
+		Removing both and returning the final path component yields the filename.
+		'''
+		if self._filename is None:
+			path = self.path # remove scheme
+			path = path.split(";")[0] # remove scheme-specific segment
+			self._filename = os.path.filenam(path)
+		return self._filename
+	
+	@property
 	def filepath(self) -> pathlib.Path:
 		'''
 		Return local file path for resource, including the filename; download if needed.
@@ -151,9 +218,10 @@ class SciIDFileResource:
 			expected_filepath = self.cache.path / self.path_within_cache / self.filename
 			if expected_filepath.exists():
 				self._filepath = expected_filepath
+				#logger.debug(f'Found in cache: "{expected_filepath}"')
 			else:
 				# file not there, download
-				logger.debug(f" -----> {self.cache.path / self.path_within_cache}")
+				#logger.debug(f" -----> {self.cache.path / self.path_within_cache}")
 				self.download_to(path=self.cache.path / self.path_within_cache)
 				
 				# check again
@@ -162,38 +230,70 @@ class SciIDFileResource:
 				else:
 					raise NotImplementedError()
 					
-			self._filepath = expected_filepath
+				self._filepath = expected_filepath
 
 		return self._filepath
 	
 	@property
-	def file_extension(self):
+	def file_extension(self) -> str:
 		'''
 		Return the file extension, if there is one.
 		'''
 		return os.splitext(self.filename)[1]
 	
 	@property
+	def path_within_cache(self) -> pathlib.Path:
+		'''
+		Returns the path where this file should be located for the currently set cache manager (`self.cache`).
+		'''
+		try:
+			return self._path_within_cache[self.cache]
+		except KeyError:
+			path = self.cache.path_within_cache(sci_id=self)
+			self._path_within_cache[self.cache] = path
+			assert not str(path).startswith("/"), "This causes problems when joining paths."
+			return path
+	
 	def is_in_cache(self) -> bool:
 		'''
 		Check if the resource is available locally, useful if one does not want to download it automatically.
+		
+		This method will look for zero-length files (e.g. if there was a previous error or code inturrupted).
+		In this case, the file will be deleted and 'False' will be returned.
 		'''
 		# If the file is found, sets self._filepath if not already set.
-		return (self.cache.path / self.path_within_cache / self.filename).exists()
+		full_path = self.cache.path / self.path_within_cache / self.filename
+		if full_path.exists():
+			if full_path.stat().st_size == 0:
+				# possible error in earlier run
+				full_path.unlink(missing_ok=True) # delete zero length file (won't be missing here!)
+				return False
+			return True
+		else:
+			return False
 	
-	def download_to(self, path:Union[pathlib.Path,str]=None):
+	@property
+	def uncompressed_size(self) -> astropy.units.quantity.Quantity:
+		'''
+		Returns the known uncompressed size of this file. This is retrieved from a database, not measured on disk, so may return 'None'.
+		'''
+		# This is not a property that can be determined offline. If any query is made that contains it, it should be set there.
+		return self._uncompressed_file_size
+	
+	def download_to(self, path:Union[pathlib.Path,str]=None) -> pathlib.Path:
 		'''
 		Download the resource to the specified directory. It will be decompressed if it's compressed from the source.
 		
 		:param path: the path to download the file to; does not include the filename
-		'''
-		logger.debug(f"path = {path}")
+		:returns: the full filepath to the file that is downloaded
+		'''		
+		logger.debug(f"downloading to: '{path}'")
 		if path is None:
 			path = self.cache.path / self.path_within_cache
 		elif isinstance(path, str):
 			path = pathlib.Path(path)
 		
-		if self.is_in_cache:
+		if self.is_in_cache(): # checks for zero length file; if found, deletes and returns False
 			return
 			
 		if path.exists() == False:
@@ -203,29 +303,41 @@ class SciIDFileResource:
 		ext = os.path.splitext(url)[1].lower() # file extension
 		
 		if ext in COMPRESSED_FILE_EXTENSIONS:
-			# File is compressed on remote server. Download and decompress.
-			if ext in [".gz"]:
-				self._download_gz_file(url=url, path=path)
-			elif ext in [".bz2", "bzip2"]:
-				self._download_bz2_file(url=url, path=path)
-			elif ext in [".zip"]:
-				self._download_zip_file(url=url, path=path)
-		
-		else:
+			self._download_compressed_file(url=url, ext=ext, path=path)
+		else:	
+			#status = None
 			# File is not compressed on the remote server.
 			# Rather than read the whole thing into memory,
 			# stream the data straight to a file on disk (making sure there are no errors).
 			response = requests.get(url, stream=True)
+			#logger.debug(f"=====> {response} , {response.status_code}")
 			try:
 				# raise "requests.HTTPError" exception if 400 <= status_code <= 600
 				response.raise_for_status()
+				#status = response.status_code
 			except requests.HTTPError:
 				if response.status_code == 404:
 					logger.debug(f"404 File not found (url='{url}')")
-		
+			
+					# File was not found. Try again with common file compression suffixes?
+					for ext in COMPRESSED_FILE_EXTENSIONS:
+						# where are you mr file?
+						file_found = False
+						if requests.head(url+ext).status_code == 200:
+							url = url + ext
+							file_found = True
+							break # file will be handled below
+					if file_found:
+						logger.warning(f"The Trillian API expected a file to be located at '{url[0:-len(ext)]}'; found instead at '{url}'.")
+						self._download_compressed_file(url=url, ext=ext, path=path)
+						return
+					else:
+						logger.warning(f"No file was found as expected at '{url}'.")
+						raise exc.FileResourceCouldNotBeFound(f"No file found where the Trillian API service expected to be found (even after looking for compressed versions of the file ('{url}').")
+
 			try:
 				# Ref: https://2.python-requests.org//en/latest/user/quickstart/#raw-response-content
-				with open(self.cache.path / self.cache_path / self.filename, mode='wb') as f:
+				with open(self.cache.path / self.path_within_cache / self.filename, mode='wb') as f:
 					for chunk in response.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
 						# chunk_size in bytes
 						f.write(chunk)
@@ -235,6 +347,24 @@ class SciIDFileResource:
 				# - network error
 				# - etc.
 				raise NotImplementedError()
+				
+	def _download_compressed_file(self, url:str, ext:str, path:os.pathLike):
+		'''
+		Download the provided file that's compressed on the remote server.
+		
+		This is an internal implementation detail that should not be called outside of this class and is subject to change or removal.
+		:param url: the full URL to the file to be downloaded
+		:param ext: the file's extension, incuding the leading fullstop, e.g. `.gz`
+		:param path: the local filesystem path to down the file into
+		'''
+		# File is compressed on remote server. Download and decompress.
+		if ext in [".gz"]:
+			self._download_gz_file(url=url, path=path)
+		elif ext in [".bz2", ".bzip2"]:
+			self._download_bz2_file(url=url, path=path)
+		elif ext in [".zip"]:
+			self._download_zip_file(url=url, path=path)
+				
 		
 	def _download_gz_file(self, url:str=None, path:pathlib.Path=None):
 		'''
