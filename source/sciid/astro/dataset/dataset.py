@@ -9,7 +9,7 @@ from ...logger import sciid_logger as logger
 # class DatasetResolverBaseMeta(type):
 # 	@staticmethod
 # 	def resolve_filename(sci_id) -> str:
-# 		return DatasetResolverBase.resolve_filename_from_release(sci_id=sci_id, dataset=__class__._dataset, releases=__class__._releases)
+# 		return DatasetResolverBase.resolveFilenameFromRelease(sci_id=sci_id, dataset=__class__._dataset, releases=__class__._releases)
 		
 
 class DatasetResolverBase(ABC):
@@ -22,10 +22,10 @@ class DatasetResolverBase(ABC):
 	def releases(self):
 		return NotImplementedError("")
 
-	def resolve_filename_from_id(self, sci_id) -> str:
-		return self.resolve_filename_from_release(sci_id=sci_id, dataset=self.dataset, releases=self.releases)
+	def resolveFilenameFromSciID(self, sci_id) -> str:
+		return self.resolveFilenameFromRelease(sci_id=sci_id, dataset=self.dataset, releases=self.releases)
 
-	def resolve_filename_from_release(self, sci_id=None, dataset=None, releases=None) -> str:
+	def resolveFilenameFromRelease(self, sci_id=None, dataset=None, releases=None) -> str:
 		'''
 		Given a SciID pointing to a file, return a URL that locates the resource.
 		
@@ -52,7 +52,7 @@ class DatasetResolverBase(ABC):
 
 			# all GALEX filenames are unique, so we can use the generic filename resolver
 			try:
-				records = sci_id.resolver.generic_filename_resolver(filename=filename, dataset=dataset, release=release)
+				records = sci_id.resolver.genericFilenameResolver(filename=filename, dataset=dataset, release=release)
 			except Exception as e:
 				raise NotImplementedError(f"error occurred when calling API: {e}")
 				

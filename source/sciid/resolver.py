@@ -43,14 +43,14 @@ class Resolver(ABC):
 		pass # subclass to implement
 		
 	@abstractmethod
-	def url_for_sciid(self, sciid) -> str:
+	def urlForSciID(self, sciid) -> str:
 		'''
 		This method resolves a SciID into a URL that can be used to retrieve the resource.
 		'''
 		pass # subclass to implement
 				
 	@abstractmethod
-	def resource_for_id(self, sciid):
+	def resourceForID(self, sciid):
 		'''
 		Resolve the provided "sciid:" identifier and retrieve the resource it points to.
 		'''

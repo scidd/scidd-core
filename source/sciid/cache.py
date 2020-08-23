@@ -32,7 +32,7 @@ class SciIDCacheManagerBase(abc.ABC):
 	
 	@property
 	@abc.abstractmethod
-	def path_within_cache(self, sci_id) -> os.PathLike:
+	def pathWithinCache(self, sci_id) -> os.PathLike:
 		'''
 		Returns the path within the cache where the resource (file) would be found. Does not include the filename.
 		'''
@@ -61,8 +61,8 @@ class SciIDCacheManagerBase(abc.ABC):
 				raise TypeError(f"This class is a virtual subclass of sciid.SciIDCacheManagerBase; it must implement the property '{prop}'.")
 		
 		# check callable methods
-		if not callable(instance.path_within_cache):
-			raise TypeError(f"This class is a virtual subclass of sciid.SciIDCacheManagerBase; it must implement the method 'path_within_cache'.")
+		if not callable(instance.pathWithinCache):
+			raise TypeError(f"This class is a virtual subclass of sciid.SciIDCacheManagerBase; it must implement the method 'pathWithinCache'.")
 
 class SciIDCacheManager(SciIDCacheManagerBase):
 	'''
@@ -143,7 +143,7 @@ class SciIDCacheManager(SciIDCacheManagerBase):
 			#self._localAPICache.parentCache = self
 		return self._localAPICache
 
-	def path_within_cache(self, sci_id:SciIDFileResource) -> os.PathLike:
+	def pathWithinCache(self, sci_id:SciIDFileResource) -> os.PathLike:
 		'''
 		The directory path within the top level SciID cache where the file would be written when downloaded.
 		
@@ -191,6 +191,7 @@ class LocalAPICache:
 		#	raise ValueError("The local API cache must have the 'path' parameter set.")
 		self._path = path	# path to database
 		self.name = name	# database filename
+		self._db = None
 	
 	@property
 	def path(self) -> os.pathLike:
@@ -231,8 +232,7 @@ class LocalAPICache:
 		'''
 		An open connection to the SQLite database.
 		'''
-		if hasattr(self, '_db') is False:
-			self._db = None
+		if self._db is None:
 			self._initial_database_connection() # defines self._db
 		return self._db
 

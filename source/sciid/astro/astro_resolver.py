@@ -69,7 +69,7 @@ class SciIDResolverAstro(sciid.Resolver):
 			
 			return response.json()
 	
-	def url_for_sciid(self, sci_id:sciid.SciID, verify_resource=False) -> str:
+	def urlForSciID(self, sci_id:sciid.SciID, verify_resource=False) -> str:
 		'''
 		This method resolves a SciID into a URL that can be used to retrieve the resource.
 		
@@ -88,9 +88,9 @@ class SciIDResolverAstro(sciid.Resolver):
 		elif isinstance(sci_id, sciid.astro.SciIDAstroFile):
 			#print(f"dataset = {sci_id.dataset}")
 			if sci_id.dataset.split(".")[0] == "galex":
-				url = GALEXResolver().resolve_filename_from_id(sci_id)
+				url = GALEXResolver().resolveFilenameFromSciID(sci_id)
 			elif sci_id.dataset.split(".")[0] == "wise":
-				url = WISEResolver().resolve_filename_from_id(sci_id)
+				url = WISEResolver().resolveFilenameFromSciID(sci_id)
 			else:
 				raise NotImplementedError(f"The dataset '{sci_id.dataset}' does not currently have a resolver associated with it.")
 		else:
@@ -127,17 +127,17 @@ class SciIDResolverAstro(sciid.Resolver):
 		
 		raise NotImplementedError()
 
-	def resource_for_id(self, sci_id):
+	def resourceForID(self, sci_id):
 		'''
 		Resolve the provided "sciid:" identifier and retrieve the resource it points to.
 		'''
-		url = self.url_for_sciid(sci_id)
+		url = self.urlForSciID(sci_id)
 		
 		# todo: fetch data/file for URL
 		
 		raise NotImplementedError()
 
-	def generic_filename_resolver(self, dataset:str=None, release:str=None, filename:str=None) -> List[dict]:
+	def genericFilenameResolver(self, dataset:str=None, release:str=None, filename:str=None) -> List[dict]:
 		'''
 		This method calls the Trillian API to search for a given filename; dataset and release names are optional.
 		'''
@@ -146,7 +146,7 @@ class SciIDResolverAstro(sciid.Resolver):
 		try:
 			results = json.loads(LocalAPICache.defaultCache()[CACHE_KEY])
 			logger.debug("API cache hit")
-			return result
+			return results
 		except KeyError:
 			query_parameters = { "filename" : filename }
 			if dataset:

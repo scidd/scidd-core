@@ -8,7 +8,6 @@ import os
 import bz2
 import pdb
 import gzip
-import httpx
 import shutil
 import pathlib
 from typing import Union
@@ -43,7 +42,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		self._url = None # a place to cache a URL once the record has been resolved
 		
 		# note: only minimal validation is being performed
-		if self.is_valid() is False:
+		if self.isValid() is False:
 			raise ValueError("The provided identifier was not validated as a valid SciID.")
 			
 		# set the resolver
@@ -82,7 +81,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 			raise ValueError("The 'sciid' property must be a string.")
 		self._sciid = new_id
 	
-	def is_valid(self) -> bool:
+	def isValid(self) -> bool:
 		'''
 		Performs (very) basic validation of the syntax of the identifier
 		
@@ -93,7 +92,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		# sometimes it might be beneficial for overriding classes to call super, other times it's inefficient and redundant.
 		return self.sciid.startswith("sciid:/")
 	
-	def is_file(self) -> bool:
+	def isFile(self) -> bool:
 		# note: this may not be an easily determined property, but let's assume for now it is
 		# todo: what to return if indeterminate?
 		''' Returns 'True' if this identifier points to a file. '''
@@ -108,7 +107,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 			if self.resolver is None:
 				raise exc.NoResolverAssignedException("Attempting to resolve a SciID without having first set a resolver object.")
 		
-			self._url = self.resolver.url_for_sciid(self)
+			self._url = self.resolver.urlForSciID(self)
 
 		return self._url
 
@@ -163,7 +162,7 @@ class SciIDFileResource:
 	
 	def __init__(self):
 		self._filepath = None # store local location
-		self._filename = None # cache the filesname derivied from the identifier
+		self._filename = None # cache the filename derived from the identifier
 		self.read_only_caches = list() # list of SciIDCacheManager objects that point to read-only caches
 
 		if __class__._default_cache_manager is None:
@@ -174,8 +173,11 @@ class SciIDFileResource:
 		# information retrieved from the Trillian API, used to test successful download of file, todo: can also use hash but will be slower
 		self._uncompressed_file_size = None
 		
-		# The path where this file should be placed/found within the provided cache relative to the top level of the cache.
-		# The value is not calculated here, but
+		# Caches
+		# A SciID is an "abstract" representation of the data. A file (in this case) can be located
+		# in multiple caches managed by the same program. The dictionary below stores the path
+		# location within each cache it encounters (i.e. relative to the top level of the cache).
+		# The value is not calculated here.
 		self._path_within_cache = dict() # key=cache manager obj, value=path; save value per cache object for repeated lookups
 		
 	# @property
@@ -212,17 +214,21 @@ class SciIDFileResource:
 	def filepath(self) -> pathlib.Path:
 		'''
 		Return local file path for resource, including the filename; download if needed.
+		
+		Note: Using autocomplete (e.g. Jupyter notebook, iPython) on a SciID object will cause the associated file to be
+		downloaded if it's not found on disk.
 		'''
+		# Note: this isn't 
 		if self._filepath is None:
 			# already in cache?
-			expected_filepath = self.cache.path / self.path_within_cache / self.filename
+			expected_filepath = self.cache.path / self.pathWithinCache / self.filename
 			if expected_filepath.exists():
 				self._filepath = expected_filepath
 				#logger.debug(f'Found in cache: "{expected_filepath}"')
 			else:
 				# file not there, download
-				#logger.debug(f" -----> {self.cache.path / self.path_within_cache}")
-				self.download_to(path=self.cache.path / self.path_within_cache)
+				#logger.debug(f" -----> {self.cache.path / self.pathWithinCache}")
+				self.downloadTo(path=self.cache.path / self.pathWithinCache)
 				
 				# check again
 				if expected_filepath.exists():
@@ -235,26 +241,26 @@ class SciIDFileResource:
 		return self._filepath
 	
 	@property
-	def file_extension(self) -> str:
+	def fileExtension(self) -> str:
 		'''
 		Return the file extension, if there is one.
 		'''
 		return os.splitext(self.filename)[1]
 	
 	@property
-	def path_within_cache(self) -> pathlib.Path:
+	def pathWithinCache(self) -> pathlib.Path:
 		'''
 		Returns the path where this file should be located for the currently set cache manager (`self.cache`).
 		'''
 		try:
 			return self._path_within_cache[self.cache]
 		except KeyError:
-			path = self.cache.path_within_cache(sci_id=self)
+			path = self.cache.pathWithinCache(sci_id=self)
 			self._path_within_cache[self.cache] = path
 			assert not str(path).startswith("/"), "This causes problems when joining paths."
 			return path
 	
-	def is_in_cache(self) -> bool:
+	def isInCache(self) -> bool:
 		'''
 		Check if the resource is available locally, useful if one does not want to download it automatically.
 		
@@ -262,7 +268,7 @@ class SciIDFileResource:
 		In this case, the file will be deleted and 'False' will be returned.
 		'''
 		# If the file is found, sets self._filepath if not already set.
-		full_path = self.cache.path / self.path_within_cache / self.filename
+		full_path = self.cache.path / self.pathWithinCache / self.filename
 		if full_path.exists():
 			if full_path.stat().st_size == 0:
 				# possible error in earlier run
@@ -273,14 +279,14 @@ class SciIDFileResource:
 			return False
 	
 	@property
-	def uncompressed_size(self) -> astropy.units.quantity.Quantity:
+	def uncompressedSize(self) -> astropy.units.quantity.Quantity:
 		'''
 		Returns the known uncompressed size of this file. This is retrieved from a database, not measured on disk, so may return 'None'.
 		'''
 		# This is not a property that can be determined offline. If any query is made that contains it, it should be set there.
 		return self._uncompressed_file_size
 	
-	def download_to(self, path:Union[pathlib.Path,str]=None) -> pathlib.Path:
+	def downloadTo(self, path:Union[pathlib.Path,str]=None) -> pathlib.Path:
 		'''
 		Download the resource to the specified directory. It will be decompressed if it's compressed from the source.
 		
@@ -289,11 +295,11 @@ class SciIDFileResource:
 		'''		
 		logger.debug(f"downloading to: '{path}'")
 		if path is None:
-			path = self.cache.path / self.path_within_cache
+			path = self.cache.path / self.pathWithinCache
 		elif isinstance(path, str):
 			path = pathlib.Path(path)
 		
-		if self.is_in_cache(): # checks for zero length file; if found, deletes and returns False
+		if self.isInCache(): # checks for zero length file; if found, deletes and returns False
 			return
 			
 		if path.exists() == False:
@@ -337,7 +343,7 @@ class SciIDFileResource:
 
 			try:
 				# Ref: https://2.python-requests.org//en/latest/user/quickstart/#raw-response-content
-				with open(self.cache.path / self.path_within_cache / self.filename, mode='wb') as f:
+				with open(self.cache.path / self.pathWithinCache / self.filename, mode='wb') as f:
 					for chunk in response.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
 						# chunk_size in bytes
 						f.write(chunk)

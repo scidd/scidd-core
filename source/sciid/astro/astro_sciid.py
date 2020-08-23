@@ -62,9 +62,9 @@ class SciIDAstro(SciID):
 
 		return super().__new__(cls)
 	
-	def is_valid(self) -> bool:
+	def isValid(self) -> bool:
 		'''
-		Performs basic validation of the syntax of the identifier
+		Performs (very!) basic validation of the syntax of the identifier.
 		'''
 		return self._sciid.startswith("sciid:/astro")
 
@@ -108,11 +108,11 @@ class SciIDAstroData(SciIDAstro):
 			raise exc.SciIDClassMismatch(f"Attempting to create {self.__class__} object with a SciID that does not begin with 'sciid:/astro/data/'; try using the 'SciID(sci_id)' factory constructor instead.")
 		super().__init__(sci_id=sci_id, resolver=resolver)
 	
-	def is_file(self) -> bool:
+	def isFile(self) -> bool:
 		''' Returns 'True' if this identifier points to a file. '''
 		return False
 
-	def is_valid(self) -> bool:
+	def isValid(self) -> bool:
 		'''
 		Performs basic validation of the syntax of the identifier; a returned value of 'True' does not guarantee a resource will be found.
 		'''
@@ -143,18 +143,18 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 	# 		logger.debug(f" --> {self._cache_path}")
 	# 	return self._cache_path
 	
-	def is_file(self) -> bool:
+	def isFile(self) -> bool:
 		''' Returns 'True' if this identifier points to a file. '''
 		return True
 
-	def is_valid(self) -> bool:
+	def isValid(self) -> bool:
 		'''
 		Performs basic validation of the syntax of the identifier; a returned value of 'True' does not guarantee a resource will be found.
 		'''
 		return self._sciid.startswith("sciid:/astro/file/")
 
 	@property
-	def filenames_unique_in_dataset(self) -> bool:
+	def filenamesUniqueInDataset(self) -> bool:
 		'''
 		Returns true if all filenames within the dataset this identifier belongs to are unique.
 		
@@ -164,7 +164,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		'''
 		return True 
 
-	def unique_identifier_for_filename(self) -> str:
+	def uniqueIdentifierForFilename(self) -> str:
 		'''
 		Returns a string that can be used as a unique identifier to disambiguate files within the dataset that have the same name.
 		
@@ -181,7 +181,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		'''
 		# the filename should always be the last part of the URI if this is a filename, excluding any fragment
 		
-		if self.is_file():
+		if self.isFile():
 			uri = self.sciid.split("#")[0]     # strip fragment identifier (if present)
 			filename = uri.split("/")[-1] # filename will always be the last element
 			
@@ -202,7 +202,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 			if self.resolver is None:
 				raise exc.NoResolverAssignedException("Attempting to resolve a SciID without having first set a resolver object.")
 			
-			self._url = self.resolver.url_for_sciid(self)
+			self._url = self.resolver.urlForSciID(self)
 		return self._url
 
 	@classmethod
@@ -223,7 +223,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		except KeyError:
 			# Use the generic filename resolver which assumes the filename is unique across all curated data.
 			# If this is not the case, override this method in a subclass (e.g. see the twomass.py file).
-			list_of_results = SciIDResolverAstro.default_resolver().generic_filename_resolver(filename=filename)
+			list_of_results = SciIDResolverAstro.default_resolver().genericFilenameResolver(filename=filename)
 			
 			# save to cache
 			try:
