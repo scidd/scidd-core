@@ -33,7 +33,7 @@ class SciIDAstro(SciID):
 			# allow abbreviated form, e.g. "/data/galex/..." becomes "sciid:/astro/galex/...";
 			sci_id = "sciid:/astro" + sci_id
 		if resolver is None:
-			resolver = SciIDResolverAstro.default_resolver()
+			resolver = SciIDResolverAstro.defaultResolver()
 		
 		super().__init__(sci_id=sci_id, resolver=resolver)
 		
@@ -71,7 +71,7 @@ class SciIDAstro(SciID):
 	@property
 	def dataset(self) -> str:
 		'''
-		Returns the short label of the dataset and the release separated by a '.'.
+		Returns the short label of the dataset and the release separated by a '.', e.g. ``sdss.dr16``
 		
 		In the context of astro data SciIDs, the dataset is the first collection and the release is the first
 		subcollection/path element that follows.
@@ -121,6 +121,9 @@ class SciIDAstroData(SciIDAstro):
 class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 	'''
 	An identifier pointing to a file in the astronomy namespace ("sciid:/astro/file/").
+	
+	:param sci_id: the SciID identifier
+	:param resolver: an object that knows how to translate a SciID into a URL that points to the specific resource
 	'''
 	
 	def __init__(self, sci_id:str=None, resolver:Resolver=None):
@@ -145,6 +148,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 	
 	def isFile(self) -> bool:
 		''' Returns 'True' if this identifier points to a file. '''
+		# this overrides the superclass implementation; is always True
 		return True
 
 	def isValid(self) -> bool:
@@ -163,15 +167,36 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		will generally require special handling anyway.
 		'''
 		return True 
-
-	def uniqueIdentifierForFilename(self) -> str:
+	
+	@property
+	def filenameUniqueIdentifier(self) -> str:
 		'''
-		Returns a string that can be used as a unique identifier to disambiguate files within the dataset that have the same name.
+		Returns a string that can be used as a unique identifier to disambiguate files that have the same name within a dataset .
 		
 		The default returns an empty string as it is assumed filenames within a dataset are unique;
 		override this method to return an identifier when this is not the case.		
 		'''
-		return ""
+		
+		# example of SciID with a filename identifier:
+		# sciid:/astro/file/2mass/allsky/ji0270198.fits;uniqueid=20001017.s.27#1
+		
+		if self._filename_unique_identifier is None:
+			match = re.search("^.+;([^#]+)", str(self))
+			if match:
+				extended_file_descriptor = match.group(1)
+				d = dict([x.split("=") for x in extended_file_descriptor.split("?")])
+				if "uniqueid" in d:
+					self._filename_unique_identifier = d["uniqueid"]
+			else:
+				self._filename_unique_identifier = None
+								
+			
+			# match = re.search("^.+;uniqueid=([^#]+)", str(self))
+			# if match:
+			# 	self._filename_unique_identifier = match.group(1)
+			# else:
+			# 	self._filename_unique_identifier = None
+		return self._filename_unique_identifier
 
 	@property
 	def filename(self, without_compressed_extension:bool=True) -> str:
@@ -179,19 +204,16 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		If this identifier points to a file, return the filename, "None" otherwise.
 		:param without_compressed_extension: if True, removes extensions indicating compression (e.g. ".zip", ".tgz", etc.)
 		'''
-		# the filename should always be the last part of the URI if this is a filename, excluding any fragment
+		# The filename should always be the last part of the URI if this is a filename, excluding any fragment.
+		uri = self.sciid.split("#")[0]  # strip fragment identifier (if present)
+		filename = uri.split("/")[-1]   # filename will always be the last element
+		filename = filename.split(";")[0] # remove any unique identifier that might be present at the end of the filename
 		
-		if self.isFile():
-			uri = self.sciid.split("#")[0]     # strip fragment identifier (if present)
-			filename = uri.split("/")[-1] # filename will always be the last element
-			
-			if without_compressed_extension:
-				fname, ext = os.path.splitext(filename)
-				if ext in compression_extensions:
-					filename = fname
-			return filename
-		else:
-			return None
+		if without_compressed_extension:
+			fname, ext = os.path.splitext(filename)
+			if ext in compression_extensions:
+				filename = fname
+		return filename
 			
 	@property
 	def url(self) -> str:
@@ -223,7 +245,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		except KeyError:
 			# Use the generic filename resolver which assumes the filename is unique across all curated data.
 			# If this is not the case, override this method in a subclass (e.g. see the twomass.py file).
-			list_of_results = SciIDResolverAstro.default_resolver().genericFilenameResolver(filename=filename)
+			list_of_results = SciIDResolverAstro.defaultResolver().genericFilenameResolver(filename=filename)
 			
 			# save to cache
 			try:
@@ -253,13 +275,13 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 	def position(self) -> SkyCoord:
 		'''
 		Returns a representative sky position for this file; this value should not be used for science.
-		
+				
 		A file could contain data that points one or more (even hundreds of thousands) locations on the sky.
-		This method effective returns the first location found, e.g. the sky location of the reference pixel
+		This method effectively returns the first location found, e.g. the sky location of the reference pixel
 		from the first image HDU, reading the first WCS from the file, reading known keywords, etc.
-		It is intended to be used as an identifier to place the file *somewhere* on the sky, but it is not
-		intended to be exhaustive. Use traditional methods to get positions for analysis. Whenever possible
-		(but not guaranteed), the value returned is in J2000 IRCS.
+		It is intended to be used as an identifier to place the file *somewhere* on the sky (e.g. for the purposes
+		of caching), but it is not intended to be exhaustive. Use traditional methods to get positions for analysis.
+		Whenever possible (but not guaranteed), the value returned is in J2000 IRCS.
 		'''
 		if self._position is None:
 			# note that the API automatically discards file compression extensions
@@ -270,7 +292,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 	
 			# handle cases where filenames are not unique
 			if self == "2mass":
-				raise NotImplementedError("TODO: handle 'uniqueid' or whatever we land on to disambuguate filenames.")
+				raise NotImplementedError("TODO: handle 'uniqueid' or whatever we land on to disambiguate filenames.")
 				parameters[""] = None
 	
 			records = sciid.API().get(path="/astro/data/filename-search", params=parameters)

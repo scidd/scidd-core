@@ -1,6 +1,7 @@
 
 import os
 import re
+import pdb
 import json
 from typing import Dict, List, Union
 
@@ -11,20 +12,33 @@ from .. import exc
 from ..cache import LocalAPICache
 from .dataset.galex import GALEXResolver
 from .dataset.wise import WISEResolver
+from .dataset.twomass import TwoMASSResolver
 from ..logger import sciid_logger as logger
 
 class SciIDResolverAstro(sciid.Resolver):
 	'''
+	This resolver can translate SciIDs of the "sciid:astro" domain into URLs that point to the specific resource.
 	
+	This object encapsulates an external service that does the actual translation. By default the service used
+	is ``api.trillianverse.org``, but any service that communicates in the same way can be used. The default is sufficient
+	most of the time. An example of using an alternative is when a large number of files are locally available where
+	it is preferred to use over downloading new external copies.
+	
+	:param scheme: scheme where the resolver service uses, e.g. "http", "https"
+	:param host: the hostname of the resolver service
+	:param port: the port number the resolver service is listening on
 	'''
 	
 	def __init__(self, scheme:str="https", host:str=None, port:int=None):
 		super().__init__(scheme=scheme, host=host, port=port)
+		self.useCache = True
 	
 	@classmethod
-	def default_resolver(cls):
+	def defaultResolver(cls):
 		'''
-		This method returns a default resolver that is pre-preconfigured with default values designed to be used out of the box (batteries included).
+		This factory method returns a resolver that is pre-preconfigured with default values designed to be used out of the box (batteries included).
+		
+		The default service is ``https://api.trillianverse.org``.
 		
 		The same object will always be returned from this method (pseudo-singleton).
 		'''
@@ -56,6 +70,7 @@ class SciIDResolverAstro(sciid.Resolver):
 		
 		with requests.Session() as http_session:
 			response = http_session.get(self.base_url + path, params=params)
+			logger.debug(f"{params =}")
 			logger.debug(f"API request URL: '{response.url}'")
 			
 			try:
@@ -87,10 +102,13 @@ class SciIDResolverAstro(sciid.Resolver):
 			raise NotImplementedError()
 		elif isinstance(sci_id, sciid.astro.SciIDAstroFile):
 			#print(f"dataset = {sci_id.dataset}")
-			if sci_id.dataset.split(".")[0] == "galex":
-				url = GALEXResolver().resolveFilenameFromSciID(sci_id)
-			elif sci_id.dataset.split(".")[0] == "wise":
-				url = WISEResolver().resolveFilenameFromSciID(sci_id)
+			dataset = sci_id.dataset.split(".")[0]
+			if dataset == "galex":
+				url = GALEXResolver().resolveURLFromSciID(sci_id)
+			elif dataset == "wise":
+				url = WISEResolver().resolveURLFromSciID(sci_id)
+			elif dataset == "2mass":
+				url = TwoMASSResolver().resolveURLFromSciID(sci_id)
 			else:
 				raise NotImplementedError(f"The dataset '{sci_id.dataset}' does not currently have a resolver associated with it.")
 		else:
@@ -137,24 +155,42 @@ class SciIDResolverAstro(sciid.Resolver):
 		
 		raise NotImplementedError()
 
-	def genericFilenameResolver(self, dataset:str=None, release:str=None, filename:str=None) -> List[dict]:
+	def genericFilenameResolver(self, dataset:str=None, release:str=None, filename:str=None, uniqueid:str=None) -> List[dict]:
 		'''
 		This method calls the Trillian API to search for a given filename; dataset and release names are optional.
+		
+		:param dataset: the short name of the dataset
+		:param release: the short name of the release
+		:param filename: the file name
+		:param uniqueid: if filenames are not unique in the dataset, this is an identifier that disambiguates the records for the filename
 		'''
-		CACHE_KEY = "/".join(["astro:file", str(dataset), str(release), str(filename)])
+		if uniqueid:
+			CACHE_KEY = "/".join(["astro:file", str(dataset), str(release), str(filename), str(uniqueid)])
+		else:
+			CACHE_KEY = "/".join(["astro:file", str(dataset), str(release), str(filename)])
 
-		try:
-			results = json.loads(LocalAPICache.defaultCache()[CACHE_KEY])
-			logger.debug("API cache hit")
-			return results
-		except KeyError:
-			query_parameters = { "filename" : filename }
-			if dataset:
-				query_parameters["dataset"] = dataset
-			if release:
-				query_parameters["release"] = release
-			results = self.get("/astro/data/filename-search", params=query_parameters)
-			
+		if self.useCache:
+			try:
+				results = json.loads(LocalAPICache.defaultCache()[CACHE_KEY])
+				logger.debug("API cache hit")
+				return results
+			except KeyError:
+				pass
+		
+		if ";" in filename:
+			pdb.set_trace()
+		
+		query_parameters = { "filename" : filename }
+		if dataset:
+			query_parameters["dataset"] = dataset
+		if release:
+			query_parameters["release"] = release
+		if uniqueid:
+			query_parameters["uniqueid"] = uniqueid
+			logger.debug(f"{uniqueid =}")
+		results = self.get("/astro/data/filename-search", params=query_parameters)
+		
+		if self.useCache:
 			try:
 				LocalAPICache.defaultCache()[CACHE_KEY] = json.dumps(results)
 			except Exception as e:

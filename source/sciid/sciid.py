@@ -56,8 +56,11 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		# Useful ref: https://stackoverflow.com/a/5953974/2712652
 		if cls is SciID:
 			if str(sci_id).startswith("sciid:/astro"):
-				from sciid.astro import SciIDAstro
-				return SciIDAstro.__new__(SciIDAstro, sci_id=sci_id, resolver=resolver)
+				from sciid.astro import SciIDAstro, SciIDAstroFile
+				if "/file/" in str(sci_id):
+					return SciIDAstroFile.__new__(SciIDAstroFile, sci_id=sci_id, resolver=resolver)
+				else:
+					return SciIDAstro.__new__(SciIDAstro, sci_id=sci_id, resolver=resolver)
 			# if sci_id.startswith("sciid:/astro/data/"):
 			# 	return super().__new__(sciid.astro.SciIDAstroData)
 			# elif sci_id.startswith("sciid:/astro/file/"):
@@ -123,6 +126,16 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		return str(self).replace('sciid:', '')
 	
 	@property
+	def fragment(self) -> str:
+		'''
+		The fragment part of the SciID; this component of the string identifies data within the resource.
+		'''
+		if "#" in self._sciid:
+			return self._sciid.split("#")[1]
+		else:
+			return None
+	
+	@property
 	def metadata(self) -> dict:
 		'''
 		Returns metadata of this file as a dictionary. [Format to be determined.]
@@ -164,6 +177,7 @@ class SciIDFileResource:
 		self._filepath = None # store local location
 		self._filename = None # cache the filename derived from the identifier
 		self.read_only_caches = list() # list of SciIDCacheManager objects that point to read-only caches
+		self._filename_unique_identifier = None # a string used to disambiguate files with the same name in the same dataset release
 
 		if __class__._default_cache_manager is None:
 			self.cache = SciIDCacheManager.default_cache()
