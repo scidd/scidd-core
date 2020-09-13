@@ -45,49 +45,18 @@ class DatasetResolverBase(ABC):
 			dataset = sci_id.dataset
 			release = None
 
-		if ";" in str(sci_id):
-			pdb.set_trace()
-
 		records = sci_id.resolver.genericFilenameResolver(dataset=dataset,
 														  release=release,
 														  filename=sci_id.filename,
 														  uniqueid=sci_id.filenameUniqueIdentifier)
 		
-		if True:
-
-		# match = re.search(f"^sciid:/astro/file/{dataset}/({'|'.join(releases)})/(.+)#?(.+)?", sci_id.sciid)
-		# logger.debug("regexp = " + f"^sciid:/astro/file/{dataset}/({'|'.join(releases)})/(.+)#?(.+)?")
-		# if match:
-		# 	release = match.group(1)
-		# 	filename = match.group(2)
-		# 	fragment = match.group(3)
-		# 	
-		# 	if ";" in filename:
-		# 		pdb.set_trace()
-		# 	
-		# 	#try:
-		# 	if True:
-		# 		records = sci_id.resolver.genericFilenameResolver(dataset=dataset,
-		# 														  release=release,
-		# 														  filename=sci_id.filename,
-		# 														  uniqueid=sci_id.filenameUniqueIdentifier)
-		# 	#except Exception as e:
-		# 	#	raise NotImplementedError(f"Error occurred when calling API: {e}")
-			
-			logger.debug(f"response: {json.dumps(records, indent=4)}\n")
-			if len(records) == 1:
-				url = records[0]["url"] # don't set sci_id.url here or will infinitely recurse
-				if sci_id.url is None:
-					sci_id._url = url
-				return url
-			elif len(records) == 0:
-				raise NotImplementedError("Handle no records returned from API.")
-			else:
-				raise NotImplementedError(f"Handle case when multiple filename records found: dataset={dataset}, release={release} {records}.")
-		
+		logger.debug(f"response: {json.dumps(records, indent=4)}\n")
+		if len(records) == 1:
+			url = records[0]["url"] # don't set sci_id.url here or will infinitely recurse
+			if sci_id._url is None:
+				sci_id._url = url
+			return url
+		elif len(records) == 0:
+			raise exc.UnableToResolveSciIDToURL(f"The SciID could not be resolved to a URL (no records found): '{sci_id}'.")
 		else:
-			logger.debug("re: could not match")
-		
-		pdb.set_trace()
-		raise exc.UnableToResolveSciIDToURL(f"The SciID could not be resolved to a URL: '{sci_id}'.")
-					
+			raise exc.UnableToResolveSciIDToURL(f"The SciID could not be resolved to a single URL ({len(records)} records found): '{sci_id}'.")

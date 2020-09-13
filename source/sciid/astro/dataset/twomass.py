@@ -54,9 +54,9 @@ class TwoMASSResolver(DatasetResolverBase):
 		# The filename should always be the last part of the URI if this is a filename, excluding any fragment.
 		uri = self.sciid.split("#")[0]  # strip fragment identifier (if present)
 		filename = uri.split("/")[-1]   # filename will always be the last element
-		uniquid = filename.split(";")[1] # remove any unique identifier that might be present at the end of the filename
+		unique_id = filename.split(";")[1] # remove any unique identifier that might be present at the end of the filename
 		
-		return uniquid
+		return unique_id
 		
 		#match = re.search(";([^#].+)", self.path)
 		#if match:

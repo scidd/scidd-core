@@ -15,7 +15,7 @@ from astropy.coordinates import SkyCoord
 from .. import exc
 from ..logger import sciid_logger as logger
 from .. import SciID, SciIDFileResource, Resolver
-from . import SciIDResolverAstro
+from . import SciIDAstroResolver
 
 compression_extensions = [".zip", ".tgz", ".gz", "bz2"]
 
@@ -33,7 +33,7 @@ class SciIDAstro(SciID):
 			# allow abbreviated form, e.g. "/data/galex/..." becomes "sciid:/astro/galex/...";
 			sci_id = "sciid:/astro" + sci_id
 		if resolver is None:
-			resolver = SciIDResolverAstro.defaultResolver()
+			resolver = SciIDAstroResolver.defaultResolver()
 		
 		super().__init__(sci_id=sci_id, resolver=resolver)
 		
@@ -245,7 +245,7 @@ class SciIDAstroFile(SciIDAstro, SciIDFileResource):
 		except KeyError:
 			# Use the generic filename resolver which assumes the filename is unique across all curated data.
 			# If this is not the case, override this method in a subclass (e.g. see the twomass.py file).
-			list_of_results = SciIDResolverAstro.defaultResolver().genericFilenameResolver(filename=filename)
+			list_of_results = SciIDAstroResolver.defaultResolver().genericFilenameResolver(filename=filename)
 			
 			# save to cache
 			try:

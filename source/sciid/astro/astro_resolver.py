@@ -13,9 +13,10 @@ from ..cache import LocalAPICache
 from .dataset.galex import GALEXResolver
 from .dataset.wise import WISEResolver
 from .dataset.twomass import TwoMASSResolver
+from .dataset.sdss import SDSSResolver
 from ..logger import sciid_logger as logger
 
-class SciIDResolverAstro(sciid.Resolver):
+class SciIDAstroResolver(sciid.Resolver):
 	'''
 	This resolver can translate SciIDs of the "sciid:astro" domain into URLs that point to the specific resource.
 	
@@ -70,7 +71,7 @@ class SciIDResolverAstro(sciid.Resolver):
 		
 		with requests.Session() as http_session:
 			response = http_session.get(self.base_url + path, params=params)
-			logger.debug(f"{params =}")
+			logger.debug(f"params={params}")
 			logger.debug(f"API request URL: '{response.url}'")
 			
 			try:
@@ -109,6 +110,8 @@ class SciIDResolverAstro(sciid.Resolver):
 				url = WISEResolver().resolveURLFromSciID(sci_id)
 			elif dataset == "2mass":
 				url = TwoMASSResolver().resolveURLFromSciID(sci_id)
+			elif dataset == "sdss":
+				url = SDSSResolver().resolveURLFromSciID(sci_id)
 			else:
 				raise NotImplementedError(f"The dataset '{sci_id.dataset}' does not currently have a resolver associated with it.")
 		else:
@@ -187,7 +190,7 @@ class SciIDResolverAstro(sciid.Resolver):
 			query_parameters["release"] = release
 		if uniqueid:
 			query_parameters["uniqueid"] = uniqueid
-			logger.debug(f"{uniqueid =}")
+			logger.debug(f"uniqueid={uniqueid}")
 		results = self.get("/astro/data/filename-search", params=query_parameters)
 		
 		if self.useCache:

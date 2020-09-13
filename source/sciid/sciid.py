@@ -315,8 +315,15 @@ class SciIDFileResource:
 		
 		if self.isInCache(): # checks for zero length file; if found, deletes and returns False
 			return
+		
+		if os.path.lexists(path):
+			# lexists returns True for broken symbolic links;
+			# useful to avoid attempting to create a directory on top of a broken link (which will crash)
 			
-		if path.exists() == False:
+			# is this a broken link?
+			if path.exists() is False:
+				raise Exception(f"Tried to set up cache but found what appears to be a broken symbolic link: '{path}'")
+		else:
 			path.mkdir(parents=True)
 			
 		url = self.url
@@ -421,9 +428,9 @@ class SciIDFileResource:
 				# handle error
 				raise NotImplementedError()
 		
-		ext = os.path.splitext(self.url)[1]
-		fname = filename[:-len(ext)]
-		logger.debug(f"fname={fname}")
+		#ext = os.path.splitext(self.url)[1]
+		#fname = filename[:-len(ext)]
+		#logger.debug(f"fname={fname}")
 		path_to_write = path / self.filename # the SciID will have the uncompressed filename
 		logger.debug(f"About to write file to: {path_to_write}")
 		
@@ -442,9 +449,9 @@ class SciIDFileResource:
 			if response.status_code == 404:
 				raise NotImplementedError() # handle error
 				
-		ext = os.path.splitext(self.url)[1]
-		fname = filename[:-len(ext)]
-		logger.debug(f"fname={fname}")
+		#ext = os.path.splitext(self.url)[1]
+		#fname = filename[:-len(ext)]
+		#logger.debug(f"fname={fname}")
 		path_to_write = path / self.filename # the SciID will have the uncompressed filename
 		logger.debug(f"About to write file to: {path_to_write}")
 		
