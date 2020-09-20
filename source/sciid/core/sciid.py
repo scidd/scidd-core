@@ -30,7 +30,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 	'''
 	This class is wrapper around SciID identifiers.
 
-	:param sciid: the SciID identifier
+	:param sci_id: the SciID identifier
 	'''
 	def __init__(self, sci_id:str=None, resolver=None):
 		if sci_id is None:
@@ -75,7 +75,8 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		return "<{0}.{1} object at {2} '{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self._sciid)
 	
 	@property
-	def sciid(self):
+	def sciid(self) -> str:
+		''' Returns a string representation of the identifier. '''
 		return self._sciid
 	
 	@sciid.setter
@@ -90,7 +91,8 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		
 		This method performs minimal validation; subclasses are expected to
 		perform more rigorous but not necessarily exhaustive checks.
-		:returns: True if this generally looks like an identifier, False if not
+		
+		:returns: ``True`` if this generally looks like an identifier, ``False`` if not
 		'''
 		# sometimes it might be beneficial for overriding classes to call super, other times it's inefficient and redundant.
 		return self.sciid.startswith("sciid:/")
@@ -98,7 +100,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 	def isFile(self) -> bool:
 		# note: this may not be an easily determined property, but let's assume for now it is
 		# todo: what to return if indeterminate?
-		''' Returns 'True' if this identifier points to a file. '''
+		''' Returns ``True`` if this identifier points to a file. '''
 		pass
 
 	@property
@@ -121,7 +123,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 	@property
 	def path(self) -> str:
 		'''
-		Returns the SciID as a string without the scheme prefix (i.e. 'sciid:' removed).
+		Returns the SciID as a string without the scheme prefix (i.e. the ``sciid:`` prefix is removed).
 		'''
 		return str(self).replace('sciid:', '')
 	
@@ -148,7 +150,7 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		A factory method that attempts to return a SciID identifier from a filename alone; depends on domain-specific resolvers.
 		
 		:param filename: the filename to create a SciID identifier from
-		:param domain: the top level domain of the resource, e.g. `astro`: todo: create a .sciid.conf file with a default domain setting
+		:param domain: the top level domain of the resource, e.g. ``astro``: todo: create a .sciid.conf file with a default domain setting
 		:param allow_multiple_results: when True will raise an exception the filename is not unique; if False will always return an array of matching SciIDs.
 		'''
 		if filename is None or len(filename) == 0:
@@ -163,7 +165,9 @@ class SciID(): #, metaclass=SciIDMetaclass):
 
 class SciIDFileResource:
 	'''
-	This class represents a SciID identifier that specifically points to and helps manage a file resource.
+	This class represents a :class:`SciID` identifier that specifically points to and helps manage a file resource.
+	
+	It provides additional properties, methods, and utility that is useful for working with files.
 	'''
 	
 	# Class variables
@@ -212,10 +216,13 @@ class SciIDFileResource:
 		
 		The filename is the last component of the identifier once the query, fragment, and xxx components are removed from the identifier.
 		For example, given this identifier:
+		
+		.. code-block::
+		
 		    sciid:/astro/data/2mass/allsky/hi0550232.fits;uniqueid=20000116.n.55?a=b
 		
-		The (optional) `;uniqueid=20000116.n.55` fragment is not part of the filename and is delineated by the ';' character.
-		The (optional) query component is delineated by the first `?`.
+		The optional ``;uniqueid=20000116.n.55`` fragment is not part of the filename and is delineated by the ``;`` character.
+		The optional query component ``a=b`` is delineated by the first ``?``.
 		Removing both and returning the final path component yields the filename.
 		'''
 		if self._filename is None:
@@ -229,8 +236,8 @@ class SciIDFileResource:
 		'''
 		Return local file path for resource, including the filename; download if needed.
 		
-		Note: Using autocomplete (e.g. Jupyter notebook, iPython) on a SciID object will cause the associated file to be
-		downloaded if it's not found on disk.
+		Note: Using autocomplete in an interactive environment (e.g. Jupyter notebook, iPython)
+		on a SciID object will cause the associated file to be downloaded if it's not found on disk.
 		'''
 		# Note: this isn't 
 		if self._filepath is None:
@@ -264,7 +271,7 @@ class SciIDFileResource:
 	@property
 	def pathWithinCache(self) -> pathlib.Path:
 		'''
-		Returns the path where this file should be located for the currently set cache manager (`self.cache`).
+		Returns the path where this file should be located for the currently set cache manager (``self.cache``).
 		'''
 		try:
 			return self._path_within_cache[self.cache]
@@ -278,8 +285,8 @@ class SciIDFileResource:
 		'''
 		Check if the resource is available locally, useful if one does not want to download it automatically.
 		
-		This method will look for zero-length files (e.g. if there was a previous error or code inturrupted).
-		In this case, the file will be deleted and 'False' will be returned.
+		This method will look for zero-length files (e.g. if there was a previous error or code interrupted).
+		In this case, the file will be deleted and ``False`` will be returned.
 		'''
 		# If the file is found, sets self._filepath if not already set.
 		full_path = self.cache.path / self.pathWithinCache / self.filename
@@ -295,17 +302,17 @@ class SciIDFileResource:
 	@property
 	def uncompressedSize(self) -> astropy.units.quantity.Quantity:
 		'''
-		Returns the known uncompressed size of this file. This is retrieved from a database, not measured on disk, so may return 'None'.
+		Returns the known uncompressed size of this file. This is retrieved from a database, not measured on disk, so may return ``None``.
 		'''
 		# This is not a property that can be determined offline. If any query is made that contains it, it should be set there.
 		return self._uncompressed_file_size
 	
 	def downloadTo(self, path:Union[pathlib.Path,str]=None) -> pathlib.Path:
 		'''
-		Download the resource to the specified directory. It will be decompressed if it's compressed from the source.
+		Download the resource to the specified directory. It will be decompressed if it’s compressed from the source.
 		
 		:param path: the path to download the file to; does not include the filename
-		:returns: the full filepath to the file that is downloaded
+		:returns: the full :py:attr:`filepath` to the file that is downloaded
 		'''		
 		logger.debug(f"downloading to: '{path}'")
 		if path is None:

@@ -53,7 +53,7 @@ class SciIDCacheManagerBase(abc.ABC):
 		'''
 		A utility method for other classes to check if they are compliant with this class' interface.
 
-		It's recommended that this be called in the `__init__` method of any class that is acting as a SciID cache manager. 
+		It's recommended that this be called in the ``__init__`` method of any class that is acting as a SciID cache manager. 
 		'''
 		# check required properties
 		for prop in ['path', 'localAPICache']:
@@ -68,12 +68,12 @@ class SciIDCacheManager(SciIDCacheManagerBase):
 	'''
 	A class that manages the data files retrieved by SciIDs; useful for repeated script runs.
 	
-	:param path: the SciID cache directory; defaults to `$HOME/.sciid_cache`
+	:param path: the SciID cache directory; defaults to ``$HOME/.sciid_cache``.
 	'''
 	
 	_default_instance = None
 	
-	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path.home()/".sciid_cache"):
+	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path(f"{pathlib.Path.home()}") / "sciid_cache"):
 		super().__init__()
 		#self.sciid_cache_path = None
 		
@@ -92,7 +92,7 @@ class SciIDCacheManager(SciIDCacheManagerBase):
 		'''
 		A cache manager that is preconfigured with default values designed to be used out of the box (batteries included).
 		
-		The default cache is located at `$HOME/.sciid_cache`, but can be changed by the user.
+		The default cache is located at ``$HOME/.sciid_cache``, but can be changed by the user.
 		There is only one instance of the default cache manager at any time, but it can be modified.
 		'''
 		if cls._default_instance is None:
@@ -181,7 +181,7 @@ class LocalAPICache:
 	outside of this package.
 	
 	:param path: path where the database will be written to or found
-	:param name: name of the cache file, defaults to "_SciID_API_Cache.sqlite"
+	:param name: name of the cache file, defaults to ``_SciID_API_Cache.sqlite``
 	'''
 	
 	_default_instance = None
@@ -220,7 +220,8 @@ class LocalAPICache:
 		'''
 		A local API cache that is preconfigured with default values designed to be used out of the box (batteries included).
 		
-		The default cache is located at `$HOME/.sciid_cache`, but can be changed by the user.
+		By default a shared instance of :class:`SciIDCacheManager` is returned.
+		The default cache is located at ``$HOME/.sciid_cache``, but can be changed by the user.
 		There is only one instance of the default cache manager at any time, but it can be modified.
 		'''
 		if cls._default_instance is None:

@@ -19,6 +19,9 @@ class Resolver(ABC):
 
 	@property
 	def base_url(self):
+		'''
+		Returns the base URL (i.e. without a path) used to resolve SciIDs, e.g. ``https://apihost:port``.
+		'''
 		if self._base_url is None:
 			if self.port is None:
 				if self.scheme == "https":
@@ -52,6 +55,6 @@ class Resolver(ABC):
 	@abstractmethod
 	def resourceForID(self, sciid):
 		'''
-		Resolve the provided "sciid:" identifier and retrieve the resource it points to.
+		Resolve the provided ``sciid:`` identifier and retrieve the resource it points to.
 		'''
 		pass # subclass to implement
