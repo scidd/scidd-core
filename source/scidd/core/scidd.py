@@ -17,72 +17,73 @@ from abc import ABC, abstractproperty, abstractmethod
 import astropy
 import requests
 
-import sciid
+import scidd
 from . import exc
-from .cache import SciIDCacheManager, SciIDCacheManagerBase
+from .cache import SciDDCacheManager, SciDDCacheManagerBase
 from .resolver import Resolver
-from .logger import sciid_logger as logger
+from .logger import scidd_logger as logger
 
 # list of file extensions that we treat as compressed files
 COMPRESSED_FILE_EXTENSIONS = [".gz", ".bz2", ".zip"]
 
-class SciID(): #, metaclass=SciIDMetaclass):
+class SciDD(): #, metaclass=SciDDMetaclass):
 	'''
-	This class is wrapper around SciID identifiers.
+	This class is wrapper around SciDD identifiers.
 
-	:param sciid: the SciID identifier
+	:param sci_dd: the SciDD identifier
 	'''
-	def __init__(self, sci_id:str=None, resolver=None):
-		if sci_id is None:
+	def __init__(self, sci_dd:str=None, resolver=None):
+		if sci_dd is None:
 			raise ValueError("An identifier must be provided.")
-		if isinstance(sci_id, dict):
-			raise ValueError("The 'sci_id' value should be a string, not a dictionary. Maybe you forgot to extract the value from an API result?")
-		self._sciid = sci_id # string representation of the identifier
+		if isinstance(sci_dd, dict):
+			raise ValueError("The 'sci_dd' value should be a string, not a dictionary. Maybe you forgot to extract the value from an API result?")
+		self._scidd = sci_dd # string representation of the identifier
 		self.resolver = resolver
 		self._url = None # a place to cache a URL once the record has been resolved
 		
 		# note: only minimal validation is being performed
 		if self.isValid() is False:
-			raise ValueError("The provided identifier was not validated as a valid SciID.")
+			raise ValueError("The provided identifier was not validated as a valid SciDD.")
 			
 		# set the resolver
 		# if resolver is None:
-		# 	raise exc.ValidResolverNotFound("A valid resolver for this SciID was not specified or else a default resolver not provided.")
+		# 	raise exc.ValidResolverNotFound("A valid resolver for this SciDD was not specified or else a default resolver not provided.")
 	
-	def __new__(cls, sci_id:str=None, resolver=None):
+	def __new__(cls, sci_dd:str=None, resolver=None):
 		'''
-		SciID is a factory class; if the prefix is identified as having a subclass dedicated to it, that subclass is instantiated.
+		SciDD is a factory class; if the prefix is identified as having a subclass dedicated to it, that subclass is instantiated.
 		'''
 		# Useful ref: https://stackoverflow.com/a/5953974/2712652
-		if cls is SciID:
-			if str(sci_id).startswith("sciid:/astro"):
-				from sciid.astro import SciIDAstro, SciIDAstroFile
-				if "/file/" in str(sci_id):
-					return SciIDAstroFile.__new__(SciIDAstroFile, sci_id=sci_id, resolver=resolver)
+		if cls is SciDD:
+			if str(sci_dd).startswith("scidd:/astro"):
+				from scidd.astro import SciDDAstro, SciDDAstroFile
+				if "/file/" in str(sci_dd):
+					return SciDDAstroFile.__new__(SciDDAstroFile, sci_dd=sci_dd, resolver=resolver)
 				else:
-					return SciIDAstro.__new__(SciIDAstro, sci_id=sci_id, resolver=resolver)
-			# if sci_id.startswith("sciid:/astro/data/"):
-			# 	return super().__new__(sciid.astro.SciIDAstroData)
-			# elif sci_id.startswith("sciid:/astro/file/"):
-			# 	return super().__new__(sciid.astro.SciIDAstroFile)
+					return SciDDAstro.__new__(SciDDAstro, sci_dd=sci_dd, resolver=resolver)
+			# if sci_dd.startswith("scidd:/astro/data/"):
+			# 	return super().__new__(scidd.astro.SciDDAstroData)
+			# elif sci_dd.startswith("scidd:/astro/file/"):
+			# 	return super().__new__(scidd.astro.SciDDAstroFile)
 		return super().__new__(cls)
 
 	def __str__(self):
-		# this is useful so one can use str(s), and "s" can be either a string or SciID object.
-		return self._sciid
+		# this is useful so one can use str(s), and "s" can be either a string or SciDD object.
+		return self._scidd
 	
 	def __repr__(self):
-		return "<{0}.{1} object at {2} '{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self._sciid)
+		return "<{0}.{1} object at {2} '{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self._scidd)
 	
 	@property
-	def sciid(self):
-		return self._sciid
+	def scidd(self) -> str:
+		''' Returns a string representation of the identifier. '''
+		return self._scidd
 	
-	@sciid.setter
-	def sciid(self, new_id):
+	@scidd.setter
+	def scidd(self, new_id):
 		if not isinstance(new_id, str):
-			raise ValueError("The 'sciid' property must be a string.")
-		self._sciid = new_id
+			raise ValueError("The 'scidd' property must be a string.")
+		self._scidd = new_id
 	
 	def isValid(self) -> bool:
 		'''
@@ -90,15 +91,16 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		
 		This method performs minimal validation; subclasses are expected to
 		perform more rigorous but not necessarily exhaustive checks.
-		:returns: True if this generally looks like an identifier, False if not
+		
+		:returns: ``True`` if this generally looks like an identifier, ``False`` if not
 		'''
 		# sometimes it might be beneficial for overriding classes to call super, other times it's inefficient and redundant.
-		return self.sciid.startswith("sciid:/")
+		return self.scidd.startswith("scidd:/")
 	
 	def isFile(self) -> bool:
 		# note: this may not be an easily determined property, but let's assume for now it is
 		# todo: what to return if indeterminate?
-		''' Returns 'True' if this identifier points to a file. '''
+		''' Returns ``True`` if this identifier points to a file. '''
 		pass
 
 	@property
@@ -108,9 +110,9 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		'''
 		if self._url is None:
 			if self.resolver is None:
-				raise exc.NoResolverAssignedException("Attempting to resolve a SciID without having first set a resolver object.")
+				raise exc.NoResolverAssignedException("Attempting to resolve a SciDD without having first set a resolver object.")
 		
-			self._url = self.resolver.urlForSciID(self)
+			self._url = self.resolver.urlForSciDD(self)
 
 		return self._url
 
@@ -121,17 +123,17 @@ class SciID(): #, metaclass=SciIDMetaclass):
 	@property
 	def path(self) -> str:
 		'''
-		Returns the SciID as a string without the scheme prefix (i.e. 'sciid:' removed).
+		Returns the SciDD as a string without the scheme prefix (i.e. the ``scidd:`` prefix is removed).
 		'''
-		return str(self).replace('sciid:', '')
+		return str(self).replace('scidd:', '')
 	
 	@property
 	def fragment(self) -> str:
 		'''
-		The fragment part of the SciID; this component of the string identifies data within the resource.
+		The fragment part of the SciDD; this component of the string identifies data within the resource.
 		'''
-		if "#" in self._sciid:
-			return self._sciid.split("#")[1]
+		if "#" in self._scidd:
+			return self._scidd.split("#")[1]
 		else:
 			return None
 	
@@ -143,44 +145,46 @@ class SciID(): #, metaclass=SciIDMetaclass):
 		raise NotImplementedError()
 		
 	@classmethod
-	def fromFilename(cls, filename:str, domain:str, allow_multiple_results=False) -> SciID:
+	def fromFilename(cls, filename:str, domain:str, allow_multiple_results=False) -> SciDD:
 		'''
-		A factory method that attempts to return a SciID identifier from a filename alone; depends on domain-specific resolvers.
+		A factory method that attempts to return a SciDD identifier from a filename alone; depends on domain-specific resolvers.
 		
-		:param filename: the filename to create a SciID identifier from
-		:param domain: the top level domain of the resource, e.g. `astro`: todo: create a .sciid.conf file with a default domain setting
-		:param allow_multiple_results: when True will raise an exception the filename is not unique; if False will always return an array of matching SciIDs.
+		:param filename: the filename to create a SciDD identifier from
+		:param domain: the top level domain of the resource, e.g. ``astro``: todo: create a .scidd.conf file with a default domain setting
+		:param allow_multiple_results: when True will raise an exception the filename is not unique; if False will always return an array of matching SciDDs.
 		'''
 		if filename is None or len(filename) == 0:
 			raise ValueError("A filename must be provided.")
 		if domain == "astro":
-			from sciid.astro import SciIDAstroFile
-			#return SciIDAstroFile.__new__(SciIDAstro, sci_id=sci_id, resolver=resolver)
+			from scidd.astro import SciDDAstroFile
+			#return SciDDAstroFile.__new__(SciDDAstro, sci_dd=sci_dd, resolver=resolver)
 			# .. todo: check here if the path looks like a file in the first place
-			return SciIDAstroFile.fromFilename(filename=filename, allow_multiple_results=allow_multiple_results)
+			return SciDDAstroFile.fromFilename(filename=filename, allow_multiple_results=allow_multiple_results)
 		else:
 			raise NotImplementedError(f"The top level domain '{domain}' is not currently implemented (the only domain currently implemented is 'astro'.")
 
-class SciIDFileResource:
+class SciDDFileResource:
 	'''
-	This class represents a SciID identifier that specifically points to and helps manage a file resource.
+	This class represents a :class:`SciDD` identifier that specifically points to and helps manage a file resource.
+	
+	It provides additional properties, methods, and utility that is useful for working with files.
 	'''
 	
 	# Class variables
 	# ---------------
-	# Use this cache manager for all new SciIDs (that point to files, of course).
+	# Use this cache manager for all new SciDDs (that point to files, of course).
 	# Note that this is a class variable! Changing it will not change any
-	# previously set cache manager on existing SciIDFileResource objects.
-	_default_cache_manager = SciIDCacheManager.default_cache()
+	# previously set cache manager on existing SciDDFileResource objects.
+	_default_cache_manager = SciDDCacheManager.default_cache()
 	
 	def __init__(self):
 		self._filepath = None # store local location
 		self._filename = None # cache the filename derived from the identifier
-		self.read_only_caches = list() # list of SciIDCacheManager objects that point to read-only caches
+		self.read_only_caches = list() # list of SciDDCacheManager objects that point to read-only caches
 		self._filename_unique_identifier = None # a string used to disambiguate files with the same name in the same dataset release
 
 		if __class__._default_cache_manager is None:
-			self.cache = SciIDCacheManager.default_cache()
+			self.cache = SciDDCacheManager.default_cache()
 		else:
 			self.cache = __class__._default_cache_manager
 			
@@ -188,7 +192,7 @@ class SciIDFileResource:
 		self._uncompressed_file_size = None
 		
 		# Caches
-		# A SciID is an "abstract" representation of the data. A file (in this case) can be located
+		# A SciDD is an "abstract" representation of the data. A file (in this case) can be located
 		# in multiple caches managed by the same program. The dictionary below stores the path
 		# location within each cache it encounters (i.e. relative to the top level of the cache).
 		# The value is not calculated here.
@@ -212,10 +216,13 @@ class SciIDFileResource:
 		
 		The filename is the last component of the identifier once the query, fragment, and xxx components are removed from the identifier.
 		For example, given this identifier:
-		    sciid:/astro/data/2mass/allsky/hi0550232.fits;uniqueid=20000116.n.55?a=b
 		
-		The (optional) `;uniqueid=20000116.n.55` fragment is not part of the filename and is delineated by the ';' character.
-		The (optional) query component is delineated by the first `?`.
+		.. code-block::
+		
+		    scidd:/astro/data/2mass/allsky/hi0550232.fits;uniqueid=20000116.n.55?a=b
+		
+		The optional ``;uniqueid=20000116.n.55`` fragment is not part of the filename and is delineated by the ``;`` character.
+		The optional query component ``a=b`` is delineated by the first ``?``.
 		Removing both and returning the final path component yields the filename.
 		'''
 		if self._filename is None:
@@ -229,8 +236,8 @@ class SciIDFileResource:
 		'''
 		Return local file path for resource, including the filename; download if needed.
 		
-		Note: Using autocomplete (e.g. Jupyter notebook, iPython) on a SciID object will cause the associated file to be
-		downloaded if it's not found on disk.
+		Note: Using autocomplete in an interactive environment (e.g. Jupyter notebook, iPython)
+		on a SciDD object will cause the associated file to be downloaded if it's not found on disk.
 		'''
 		# Note: this isn't 
 		if self._filepath is None:
@@ -264,12 +271,12 @@ class SciIDFileResource:
 	@property
 	def pathWithinCache(self) -> pathlib.Path:
 		'''
-		Returns the path where this file should be located for the currently set cache manager (`self.cache`).
+		Returns the path where this file should be located for the currently set cache manager (``self.cache``).
 		'''
 		try:
 			return self._path_within_cache[self.cache]
 		except KeyError:
-			path = self.cache.pathWithinCache(sci_id=self)
+			path = self.cache.pathWithinCache(sci_dd=self)
 			self._path_within_cache[self.cache] = path
 			assert not str(path).startswith("/"), "This causes problems when joining paths."
 			return path
@@ -278,8 +285,8 @@ class SciIDFileResource:
 		'''
 		Check if the resource is available locally, useful if one does not want to download it automatically.
 		
-		This method will look for zero-length files (e.g. if there was a previous error or code inturrupted).
-		In this case, the file will be deleted and 'False' will be returned.
+		This method will look for zero-length files (e.g. if there was a previous error or code interrupted).
+		In this case, the file will be deleted and ``False`` will be returned.
 		'''
 		# If the file is found, sets self._filepath if not already set.
 		full_path = self.cache.path / self.pathWithinCache / self.filename
@@ -295,17 +302,17 @@ class SciIDFileResource:
 	@property
 	def uncompressedSize(self) -> astropy.units.quantity.Quantity:
 		'''
-		Returns the known uncompressed size of this file. This is retrieved from a database, not measured on disk, so may return 'None'.
+		Returns the known uncompressed size of this file. This is retrieved from a database, not measured on disk, so may return ``None``.
 		'''
 		# This is not a property that can be determined offline. If any query is made that contains it, it should be set there.
 		return self._uncompressed_file_size
 	
 	def downloadTo(self, path:Union[pathlib.Path,str]=None) -> pathlib.Path:
 		'''
-		Download the resource to the specified directory. It will be decompressed if it's compressed from the source.
+		Download the resource to the specified directory. It will be decompressed if it’s compressed from the source.
 		
 		:param path: the path to download the file to; does not include the filename
-		:returns: the full filepath to the file that is downloaded
+		:returns: the full :py:attr:`filepath` to the file that is downloaded
 		'''		
 		logger.debug(f"downloading to: '{path}'")
 		if path is None:
@@ -409,7 +416,7 @@ class SciIDFileResource:
 		ext = os.path.splitext(self.url)[1]
 		#fname = self.filename[:-len(ext)]
 		#logger.debug(f"fname={fname}")
-		path_to_write = path / self.filename # the SciID will have the uncompressed filename
+		path_to_write = path / self.filename # the SciDD will have the uncompressed filename
 		logger.debug(f"About to write file to: {path} / {self.filename}")
 		
 		with open(path_to_write, 'wb') as f:
@@ -431,7 +438,7 @@ class SciIDFileResource:
 		#ext = os.path.splitext(self.url)[1]
 		#fname = filename[:-len(ext)]
 		#logger.debug(f"fname={fname}")
-		path_to_write = path / self.filename # the SciID will have the uncompressed filename
+		path_to_write = path / self.filename # the SciDD will have the uncompressed filename
 		logger.debug(f"About to write file to: {path_to_write}")
 		
 		with open(path_to_write, 'wb') as f:
@@ -452,7 +459,7 @@ class SciIDFileResource:
 		#ext = os.path.splitext(self.url)[1]
 		#fname = filename[:-len(ext)]
 		#logger.debug(f"fname={fname}")
-		path_to_write = path / self.filename # the SciID will have the uncompressed filename
+		path_to_write = path / self.filename # the SciDD will have the uncompressed filename
 		logger.debug(f"About to write file to: {path_to_write}")
 		
 		# note: zip files can contain multiple files

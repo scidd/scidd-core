@@ -14,10 +14,10 @@ class API:
 		self.host = host
 		self.port = port
 		
-		if host is None and "SCIID_API_HOST" in os.environ:
-			self.host = os.environ["SCIID_API_HOST"]
-		if port is None and "SCIID_API_PORT" in os.environ:
-			self.port = os.environ["SCIID_API_PORT"]
+		if host is None and "SCIDD_API_HOST" in os.environ:
+			self.host = os.environ["SCIDD_API_HOST"]
+		if port is None and "SCIDD_API_PORT" in os.environ:
+			self.port = os.environ["SCIDD_API_PORT"]
 		
 		if self.host in ["127.0.0.1", "localhost"]:
 			self.scheme = "http://" # for development
@@ -33,7 +33,7 @@ class API:
 
 	def get(self, path=None, params=[], headers:dict=None) -> dict:
 		'''
-		Make a GET call on the SciID API with the given path and parameters.
+		Make a GET call on the SciDD API with the given path and parameters.
 		
 		:param path: the path of the API to call
 		:param params: a dictionary of the parameters to pass to the API

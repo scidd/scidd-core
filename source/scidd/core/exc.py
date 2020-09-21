@@ -5,19 +5,19 @@ class ValidResolverNotFound(Exception):
 class NoResolverAssignedException(Exception):
 	pass
 
-class UnableToResolveSciIDToURL(Exception):
+class UnableToResolveSciDDToURL(Exception):
 	pass
 
 class ResourceUnavailableWhereResolverExpected(Exception):
 	pass
 
-class UnableToResolveFilenameToSciID(Exception):
+class UnableToResolveFilenameToSciDD(Exception):
 	pass
 
 class TrillianAPIException(Exception):
 	pass
 
-class UnexpectedSciIDFormatException(Exception):
+class UnexpectedSciDDFormatException(Exception):
 	pass
  
 class FileResourceCouldNotBeFound(Exception):

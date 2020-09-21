@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 class Resolver(ABC):
 	'''
-	This class resolves SciIDs into URLs that point to the resource.
+	This class resolves SciDDs into URLs that point to the resource.
 	'''
 	_default_instance = None
 	
@@ -19,6 +19,9 @@ class Resolver(ABC):
 
 	@property
 	def base_url(self):
+		'''
+		Returns the base URL (i.e. without a path) used to resolve SciDDs, e.g. ``https://apihost:port``.
+		'''
 		if self._base_url is None:
 			if self.port is None:
 				if self.scheme == "https":
@@ -43,15 +46,15 @@ class Resolver(ABC):
 		pass # subclass to implement
 		
 	@abstractmethod
-	def urlForSciID(self, sciid) -> str:
+	def urlForSciDD(self, scidd) -> str:
 		'''
-		This method resolves a SciID into a URL that can be used to retrieve the resource.
+		This method resolves a SciDD into a URL that can be used to retrieve the resource.
 		'''
 		pass # subclass to implement
 				
 	@abstractmethod
-	def resourceForID(self, sciid):
+	def resourceForID(self, scidd):
 		'''
-		Resolve the provided "sciid:" identifier and retrieve the resource it points to.
+		Resolve the provided ``scidd:`` identifier and retrieve the resource it points to.
 		'''
 		pass # subclass to implement

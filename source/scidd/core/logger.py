@@ -8,15 +8,15 @@ except ImportError:
 	colored_logs_available =False
 	
 try:
-	sciid_logger
+	scidd_logger
 except NameError:
 	
 	# set up logger
 	
-	sciid_logger = logging.getLogger("sciid") # create new logger
+	scidd_logger = logging.getLogger("scidd") # create new logger
 
 	if colored_logs_available:
-		coloredlogs.install(logger=sciid_logger)
+		coloredlogs.install(logger=scidd_logger)
 
 	# customize field styles
 	#
@@ -36,31 +36,31 @@ except NameError:
 	# -----
 	field_styles["levelname"] = {'color': 'yellow', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.DEBUG, field_styles=field_styles, fmt=log_format, logger=sciid_logger)
+	coloredlogs.install(level=logging.DEBUG, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# INFO
 	# ----
 	field_styles["levelname"] = {'color': 'yellow', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.INFO, field_styles=field_styles, fmt=log_format, logger=sciid_logger)
+	coloredlogs.install(level=logging.INFO, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# WARNING
 	# -------
 	field_styles["levelname"] = {'color': 'yellow', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.WARNING, field_styles=field_styles, fmt=log_format, logger=sciid_logger)
+	coloredlogs.install(level=logging.WARNING, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# ERROR
 	# -----
 	field_styles["levelname"] = {'color': 'red', 'bold': False}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.ERROR, field_styles=field_styles, fmt=log_format, logger=sciid_logger)
+	coloredlogs.install(level=logging.ERROR, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# CRITICAL
 	# --------
 	field_styles["levelname"] = {'color': 'red', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.CRITICAL, field_styles=field_styles, fmt=log_format, logger=sciid_logger)
+	coloredlogs.install(level=logging.CRITICAL, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 
 	#coloredlogs.set_level(logging.DEBUG)
 

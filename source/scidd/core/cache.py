@@ -7,15 +7,15 @@ import os
 import re
 import abc
 import pdb
-import sciid
+import scidd
 import pathlib
 import sqlite3
 import contextlib
 from typing import Union
 
-from .logger import sciid_logger as logger
+from .logger import scidd_logger as logger
 
-class SciIDCacheManagerBase(abc.ABC):
+class SciDDCacheManagerBase(abc.ABC):
 	
 	@property
 	@abc.abstractmethod
@@ -32,7 +32,7 @@ class SciIDCacheManagerBase(abc.ABC):
 	
 	@property
 	@abc.abstractmethod
-	def pathWithinCache(self, sci_id) -> os.PathLike:
+	def pathWithinCache(self, sci_dd) -> os.PathLike:
 		'''
 		Returns the path within the cache where the resource (file) would be found. Does not include the filename.
 		'''
@@ -53,29 +53,29 @@ class SciIDCacheManagerBase(abc.ABC):
 		'''
 		A utility method for other classes to check if they are compliant with this class' interface.
 
-		It's recommended that this be called in the `__init__` method of any class that is acting as a SciID cache manager. 
+		It's recommended that this be called in the ``__init__`` method of any class that is acting as a SciDD cache manager. 
 		'''
 		# check required properties
 		for prop in ['path', 'localAPICache']:
 			if not hasattr(instance, prop):
-				raise TypeError(f"This class is a virtual subclass of sciid.SciIDCacheManagerBase; it must implement the property '{prop}'.")
+				raise TypeError(f"This class is a virtual subclass of scidd.SciDDCacheManagerBase; it must implement the property '{prop}'.")
 		
 		# check callable methods
 		if not callable(instance.pathWithinCache):
-			raise TypeError(f"This class is a virtual subclass of sciid.SciIDCacheManagerBase; it must implement the method 'pathWithinCache'.")
+			raise TypeError(f"This class is a virtual subclass of scidd.SciDDCacheManagerBase; it must implement the method 'pathWithinCache'.")
 
-class SciIDCacheManager(SciIDCacheManagerBase):
+class SciDDCacheManager(SciDDCacheManagerBase):
 	'''
-	A class that manages the data files retrieved by SciIDs; useful for repeated script runs.
+	A class that manages the data files retrieved by SciDDs; useful for repeated script runs.
 	
-	:param path: the SciID cache directory; defaults to `$HOME/.sciid_cache`
+	:param path: the SciDD cache directory; defaults to ``$HOME/.scidd_cache``.
 	'''
 	
 	_default_instance = None
 	
-	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path.home()/".sciid_cache"):
+	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path(f"{pathlib.Path.home()}") / "scidd_cache"):
 		super().__init__()
-		#self.sciid_cache_path = None
+		#self.scidd_cache_path = None
 		
 		if isinstance(path, os.PathLike):
 			pass
@@ -92,7 +92,7 @@ class SciIDCacheManager(SciIDCacheManagerBase):
 		'''
 		A cache manager that is preconfigured with default values designed to be used out of the box (batteries included).
 		
-		The default cache is located at `$HOME/.sciid_cache`, but can be changed by the user.
+		The default cache is located at ``$HOME/.scidd_cache``, but can be changed by the user.
 		There is only one instance of the default cache manager at any time, but it can be modified.
 		'''
 		if cls._default_instance is None:
@@ -143,9 +143,9 @@ class SciIDCacheManager(SciIDCacheManagerBase):
 			#self._localAPICache.parentCache = self
 		return self._localAPICache
 
-	def pathWithinCache(self, sci_id:SciIDFileResource) -> os.PathLike:
+	def pathWithinCache(self, sci_dd:SciDDFileResource) -> os.PathLike:
 		'''
-		The directory path within the top level SciID cache where the file would be written when downloaded.
+		The directory path within the top level SciDD cache where the file would be written when downloaded.
 		
 		This can be domain-specific, e.g. a collection that has millions of files might be better served
 		with a custom scheme. It's recommended to subclass this class for such files.
@@ -153,16 +153,16 @@ class SciIDCacheManager(SciIDCacheManagerBase):
 		# remove prefix and leading "/"
 
 		try:
-			return sci_id._path_within_cache[self]
+			return sci_dd._path_within_cache[self]
 		except KeyError:
-			p = str(pathlib.Path(sci_id.path).parent).lstrip("/")
+			p = str(pathlib.Path(sci_dd.path).parent).lstrip("/")
 			assert not p.startswith("/"), "This causes problems!"
 
 			# remove the "/file/" component; it's redundant
 			match = re.search("^([^/]+)/file/(.+)", p)
 			if match:
 				p = f"{match.group(1)}/{match.group(2)}"
-			sci_id._path_within_cache[self] = p
+			sci_dd._path_within_cache[self] = p
 			#logger.debug(f" path_within_cache = '{p}'")
 			return p
 
@@ -181,12 +181,12 @@ class LocalAPICache:
 	outside of this package.
 	
 	:param path: path where the database will be written to or found
-	:param name: name of the cache file, defaults to "_SciID_API_Cache.sqlite"
+	:param name: name of the cache file, defaults to ``_SciDD_API_Cache.sqlite``
 	'''
 	
 	_default_instance = None
 	
-	def __init__(self, path:os.PathLike=None, name:str="_SciID_API_Cache.sqlite"):
+	def __init__(self, path:os.PathLike=None, name:str="_SciDD_API_Cache.sqlite"):
 		#if path is None:
 		#	raise ValueError("The local API cache must have the 'path' parameter set.")
 		self._path = path	# path to database
@@ -220,11 +220,12 @@ class LocalAPICache:
 		'''
 		A local API cache that is preconfigured with default values designed to be used out of the box (batteries included).
 		
-		The default cache is located at `$HOME/.sciid_cache`, but can be changed by the user.
+		By default a shared instance of :class:`SciDDCacheManager` is returned.
+		The default cache is located at ``$HOME/.scidd_cache``, but can be changed by the user.
 		There is only one instance of the default cache manager at any time, but it can be modified.
 		'''
 		if cls._default_instance is None:
-			cls._default_instance = cls(path=SciIDCacheManager.default_cache().path) # use defaults
+			cls._default_instance = cls(path=SciDDCacheManager.default_cache().path) # use defaults
 		return cls._default_instance
 
 	@property

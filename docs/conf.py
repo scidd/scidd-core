@@ -1,4 +1,5 @@
-# === sciid conf.py ===
+
+# ---------------------- scidd-core --------------------
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -18,27 +19,24 @@ from datetime import datetime
 import sphinx.ext
 sys.path.insert(0, os.path.abspath('../source'))
 
-import sciid
+import scidd
 
 # -- Project information -----------------------------------------------------
 
-project = 'SciID'
+project = 'SciDD'
 author = 'Demitri Muna'
-copyright = f'2020-{format(datetime.utcnow().year)} {author}, '
+copyright = f'2020, {author}'
+#copyright = f'2020-{format(datetime.utcnow().year)} {author}, '
+
+# The full version, including alpha/beta/rc tags
+release = '1.0a0'
 
 
 # -- General configuration ---------------------------------------------------
 
-#primary_domain = 'sciid'
-
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-
-# Ref: https://stackoverflow.com/a/51312475/2712652
-# pip install sphinx-autodoc-typehints
-
-napoleon_use_param = True
 extensions = [
 	'sphinx.ext.autodoc',
 	'sphinx.ext.intersphinx',
@@ -47,10 +45,11 @@ extensions = [
 	'sphinx.ext.viewcode',
 	'sphinx.ext.todo',
 	'sphinx.ext.napoleon', # must appear before 'sphinx-autodoc-typehints'
-	'sphinx_autodoc_typehints'
+	'sphinx_autodoc_typehints',
+	# markdown support
+	'recommonmark',
+	'sphinx_markdown_tables'
 ]
-
-# alt theme: https://github.com/readthedocs/sphinx_rtd_theme
 
 # number of days to cache remotely downloaded 'inv' files (default = 5)
 intersphinx_cache_limit = 1
@@ -61,8 +60,8 @@ intersphinx_mapping = {
 
 #	   'numpy': ('https://docs.scipy.org/doc/numpy/', None),
 #	   'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
-#	   'matplotlib': ('https://matplotlib.sourceforge.net', None),
-                       
+
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -71,6 +70,10 @@ templates_path = ['_templates']
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown'
+}
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -78,9 +81,23 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # a list of builtin themes.
 #
 html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_theme_options = {
+    'logo_only': True,
+    'display_version': True,
+    'prev_next_buttons_location': 'bottom',
+    'style_external_links': True,
+    # Toc options
+    'collapse_navigation': False,
+    'sticky_navigation': False,
+    'navigation_depth': 3,
+    'includehidden': True,
+    'titles_only': False
+}
 

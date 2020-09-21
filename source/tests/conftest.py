@@ -2,9 +2,9 @@
 import pytest
 import pathlib
 
-from sciid import SciIDCacheManager
+from scidd import SciDDCacheManager
 
 @pytest.fixture
 def temporary_cache():
-	temporary_cache = SciIDCacheManager(path=pathlib.Path(__file__).parent / "sciid_test_cache")
+	temporary_cache = SciDDCacheManager(path=pathlib.Path(__file__).parent / "scidd_test_cache")
 	return temporary_cache
