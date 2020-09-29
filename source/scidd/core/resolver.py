@@ -5,6 +5,9 @@ from abc import ABC, abstractmethod
 class Resolver(ABC):
 	'''
 	This class resolves SciDDs into URLs that point to the resource.
+	
+	This is an abstract base class to be used to create domain-specific resolvers from.
+	The core SciDD package does not provide a resolver.
 	'''
 	_default_instance = None
 	

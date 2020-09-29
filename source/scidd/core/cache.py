@@ -73,7 +73,7 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 	
 	_default_instance = None
 	
-	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path(f"{pathlib.Path.home()}") / "scidd_cache"):
+	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path(f"{pathlib.Path.home()}") / ".scidd_cache"):
 		super().__init__()
 		#self.scidd_cache_path = None
 		
@@ -248,7 +248,7 @@ class LocalAPICache:
 			self._db = sqlite3.connect(db_filepath)
 		except sqlite3.OperationalError as e:
 			if is_new_database:
-				raise Exception(f"Unable to create database at specified path ('{self.index_path}').")
+				raise Exception(f"Unable to create database at specified path ('{db_filepath}').")
 			else:
 				raise Exception(f"Found file at path '{path / self.name}', but am unable to open as an SQLite database.")
 		

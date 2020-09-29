@@ -4,7 +4,7 @@ from typing import Dict
 
 import requests
 
-from .utilities.designpatterns import singleton
+from scidd.core.utilities.designpatterns import singleton
 
 @singleton
 class API:

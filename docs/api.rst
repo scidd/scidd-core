@@ -63,7 +63,8 @@ SciDD Resolver
 --------------
 
 This class does the low-level work of resolving a SciDD into a URL. The class below is an
-abstract base class to be used as a superclass for classes that do the actual work.
+abstract base class to be used as a superclass for classes that do the actual work, e.g.
+in conjunction with an external REST API.
 
 .. module:: scidd.core
 

@@ -19,7 +19,7 @@ from datetime import datetime
 import sphinx.ext
 sys.path.insert(0, os.path.abspath('../source'))
 
-import scidd
+import scidd.core
 
 # -- Project information -----------------------------------------------------
 
@@ -45,10 +45,10 @@ extensions = [
 	'sphinx.ext.viewcode',
 	'sphinx.ext.todo',
 	'sphinx.ext.napoleon', # must appear before 'sphinx-autodoc-typehints'
-	'sphinx_autodoc_typehints',
+	'sphinx_autodoc_typehints'
 	# markdown support
-	'recommonmark',
-	'sphinx_markdown_tables'
+	#'recommonmark',
+	#'sphinx_markdown_tables'
 ]
 
 # number of days to cache remotely downloaded 'inv' files (default = 5)
