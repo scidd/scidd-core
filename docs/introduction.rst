@@ -1,4 +1,7 @@
 Introduction and Concepts
 =========================
 
-In progress; check back soon!
+Accessing Information in a Sea of Data
+--------------------------------------
+
+

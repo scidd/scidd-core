@@ -137,6 +137,12 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 		else:
 			return None
 	
+	def sciDDWithoutFragment(self) -> SciDD:
+		'''
+		Returns a new SciDD object that is stripped of the fragment (if there is one).
+		'''
+		return SciDD(str(self).split("#")[0])
+	
 	@property
 	def metadata(self) -> dict:
 		'''
