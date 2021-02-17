@@ -43,7 +43,7 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 		
 		# note: only minimal validation is being performed
 		if self.isValid() is False:
-			raise ValueError("The provided identifier was not validated as a valid SciDD.")
+			raise ValueError(f"The provided identifier was not validated as a valid SciDD ('sci_dd').")
 			
 		# set the resolver
 		# if resolver is None:
@@ -136,6 +136,16 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 			return self._scidd.split("#")[1]
 		else:
 			return None
+	
+	@fragment.setter
+	def fragment(self, new_fragment):
+		'''
+		Add the provided string as a fragment to this SciDD.
+		'''
+		if "#" in self._scidd:
+			# already has a fragment
+			self._scidd = self._scidd.sciDDWithoutFragment()
+		self._scidd = "#".join(self._scidd, new_fragment)
 	
 	def sciDDWithoutFragment(self) -> SciDD:
 		'''
