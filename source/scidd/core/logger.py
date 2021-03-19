@@ -20,13 +20,14 @@ except NameError:
 
 	# customize field styles
 	#
-	field_styles = coloredlogs.DEFAULT_FIELD_STYLES
-	# default value = {'hostname': {'color': 'magenta'},
-	#				   'programname': {'color': 'cyan'},
-	#				   'name': {'color': 'blue'},
-	#                  'levelname': {'color': 'black', 'bold': True},
-	#				   'asctime': {'color': 'green'}
-	#                 }
+	if colored_logs_available:
+		field_styles = coloredlogs.DEFAULT_FIELD_STYLES
+		# default value = {'hostname': {'color': 'magenta'},
+		#				   'programname': {'color': 'cyan'},
+		#				   'name': {'color': 'blue'},
+		#                  'levelname': {'color': 'black', 'bold': True},
+		#				   'asctime': {'color': 'green'}
+		#                 }
 
 	# customize output
 	# default: coloredlogs.DEFAULT_LOG_FORMAT = '%(asctime)s %(hostname)s %(name)s[%(process)d] %(levelname)s %(message)s'
@@ -36,31 +37,36 @@ except NameError:
 	# -----
 	field_styles["levelname"] = {'color': 'yellow', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.DEBUG, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
+	if colored_logs_available:
+		coloredlogs.install(level=logging.DEBUG, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# INFO
 	# ----
 	field_styles["levelname"] = {'color': 'yellow', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.INFO, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
+	if colored_logs_available:
+		coloredlogs.install(level=logging.INFO, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# WARNING
 	# -------
 	field_styles["levelname"] = {'color': 'yellow', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.WARNING, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
+	if colored_logs_available:
+		coloredlogs.install(level=logging.WARNING, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# ERROR
 	# -----
 	field_styles["levelname"] = {'color': 'red', 'bold': False}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.ERROR, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
+	if colored_logs_available:
+		coloredlogs.install(level=logging.ERROR, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 	
 	# CRITICAL
 	# --------
 	field_styles["levelname"] = {'color': 'red', 'bold': True}
 	field_styles["name"] = {'color': 'yellow', 'bold': True} # logger name
-	coloredlogs.install(level=logging.CRITICAL, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
+	if colored_logs_available:
+		coloredlogs.install(level=logging.CRITICAL, field_styles=field_styles, fmt=log_format, logger=scidd_logger)
 
 	#coloredlogs.set_level(logging.DEBUG)
 
