@@ -19,6 +19,9 @@ class TrillianAPIException(Exception):
 
 class UnexpectedSciDDFormatException(Exception):
 	pass
- 
+
 class FileResourceCouldNotBeFound(Exception):
+	pass
+
+class InternetConnectionError(Exception):
 	pass
