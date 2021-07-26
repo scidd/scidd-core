@@ -56,7 +56,7 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 		SciDD is a factory class; if the prefix is identified as having a subclass dedicated to it, that subclass is instantiated.
 		'''
 		# Useful ref: https://stackoverflow.com/a/5953974/2712652
-		if cls is SciDD:
+		if type(cls) == type(SciDD):
 			if str(sci_dd).startswith("scidd:/astro"):
 				from scidd.astro import SciDDAstro, SciDDAstroFile
 				if "/file/" in str(sci_dd):
@@ -74,7 +74,7 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 		return self._scidd
 
 	def __repr__(self):
-		return "<{0}.{1} object at {2} '{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self._scidd)
+		return f"<scidd.astro.{self.__class__.__name__} object at {hex(id(self))} '{self._scidd}'>"
 
 	@property
 	def scidd(self) -> str:
@@ -332,7 +332,9 @@ class SciDDFileResource:
 		:param path: the path to download the file to; does not include the filename
 		:returns: the full :py:attr:`filepath` to the file that is downloaded
 		'''
-		logger.debug(f"downloading to: '{path}'")
+		logger.debug(f"downloading '{self.url}' to: '{path}'")
+		#raise Exception("break here to catch when files are being downloaded")
+
 		if path is None:
 			path = self.cache.path / self.pathWithinCache
 		elif isinstance(path, str):

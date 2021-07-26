@@ -42,14 +42,14 @@ class SciDDCacheManagerBase(abc.ABC):
 		return "<{0}.{1} object at {2} path='{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self.path)
 
 	@abc.abstractproperty
-	def localAPICache(self):
+	def localAPICache(self) -> SciDDCacheManagerBase:
 		'''
 		A local database that caches API responses.
 		'''
 		pass
 
 	@staticmethod
-	def conforms_to_interface(instance):
+	def conforms_to_interface(instance) -> bool:
 		'''
 		A utility method for other classes to check if they are compliant with this class' interface.
 
@@ -75,7 +75,6 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 
 	def __init__(self, path:Union[str,pathlib.Path]=pathlib.Path(f"{pathlib.Path.home()}") / ".scidd_cache"):
 		super().__init__()
-		#self.scidd_cache_path = None
 
 		if isinstance(path, os.PathLike):
 			pass
@@ -84,7 +83,7 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 		else:
 			raise Exception(f"'path' must either be a str or os.PathLike object; was given '{type(path)}'.")
 
-		self._cache_path = path # creates directory if it doesn't exist
+		self._cache_parent_directory = path # creates directory if it doesn't exist
 
 
 	@classmethod
@@ -104,7 +103,7 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 		'''
 		The directory used to download files to.
 		'''
-		return self._cache_path
+		return self._cache_parent_directory
 
 	@path.setter
 	def path(self, new_path:Union[str,pathlib.Path]=None):
@@ -130,10 +129,10 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 		elif os.access(new_path, mode=os.W_OK) == False:
 			raise Exception(f"The provided cache directory ({new_path}) is not writable (check permissions?).")
 
-		self._cache_path = new_path
+		self._cache_parent_directory = new_path
 
 	@property
-	def localAPICache(self):
+	def localAPICache(self) -> LocalAPICache:
 		'''
 		A local database that caches API responses.
 		'''
@@ -166,16 +165,11 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 			#logger.debug(f" path_within_cache = '{p}'")
 			return p
 
-		# raise Exception()
-		# if self._cache_path is None:
-		# 	# remove prefix and leading "/"
-		# 	self._cache_path = self.path.parent
-		# 	logger.debug(f" cache_path = {self._cache_path} / {self.path}")
-		# 	return self._cache_path
-
 class LocalAPICache:
 	'''
 	This class manages a local database that caches requests/responses to the API to improve performance on repeated script runs.
+
+	The cache is thread-safe and multiprocessing safe.
 
 	This class should be considered a private implementation detail and is not intended to be interacted with
 	outside of this package.
@@ -187,39 +181,60 @@ class LocalAPICache:
 	_default_instance = None
 
 	def __init__(self, path:os.PathLike=pathlib.Path(".scidd_cache"), name:str="_SciDD_API_Cache.sqlite"):
-		#if path is None:
-		#	raise ValueError("The local API cache must have the 'path' parameter set.")
-		self._path = path	# path to database
-		self.name = name	# database filename
-		self._db = None
 
+		self.dbFilepath = path / name # the full path + filename for the cache
+
+		# create database path if needed
 		if not os.path.exists(self.path):
-			os.makedirs(self.path)
+			try:
+				os.makedirs(self.path)
+			except OSError as e:
+				raise OSError(f"Unable to create specified path '{path}'; error: {e} ")
+
+		if self.path.is_symlink(): # or os.path.islink(fp)
+			if not os.path.exists(os.readlink(self.path)):
+				# broken link
+				raise Exception(f"The path where the SciDD cache is expected ('{self.path}') is symlink pointing to a target that is no longer there. " +
+			                    "Either remove the symlink or fix the destination.")
+
+		self._initialize_database()
+
+		#self.path = path	# path to database
+		#self.name = name	# database filename
+		#self._db = None
 
 	@property
-	def path(self) -> os.pathLike:
+	def path(self) -> pathlib.Path:
 		'''
-		The full path where the cache database can be found (not including the filename).
+		Returns the path where the cache lives.
 		'''
-		return self._path
+		return self.dbFilepath.parent
 
-	@path.setter
-	def path(self, new_value:os.PathLike):
-		'''
-		The full path where the cache database can be found. The directory must exist before setting this value.
 
-		Note that the path should be set before any access to the cache is made!
-		'''
-		if self._db is None:
-			raise ValueError(f"The path cannot be changed after the first connection to the database is made.")
-		if not new_value.exists():
-			raise ValueError(f"The path to place the cache database must previously exist; '{new_value}' coud not be found.")
-		if not os.access(new_value, os.W_OK | os.X_OK):
-			raise ValueError(f"The cache path provided is not writable: '{new_value}'")
-		self._path = new_value
+# 	@property
+# 	def path(self) -> os.pathLike:
+# 		'''
+# 		The full path where the cache database can be found (not including the filename).
+# 		'''
+# 		return self._path
+#
+# 	@path.setter
+# 	def path(self, new_value:os.PathLike):
+# 		'''
+# 		The full path where the cache database can be found. The directory must exist before setting this value.
+#
+# 		Note that the path should be set before any access to the cache is made!
+# 		'''
+# 		if self._db is None:
+# 			raise ValueError(f"The path cannot be changed after the first connection to the database is made.")
+# 		if not new_value.exists():
+# 			raise ValueError(f"The path to place the cache database must previously exist; '{new_value}' coud not be found.")
+# 		if not os.access(new_value, os.W_OK | os.X_OK):
+# 			raise ValueError(f"The cache path provided is not writable: '{new_value}'")
+# 		self._path = new_value
 
 	@classmethod
-	def defaultCache(cls):
+	def defaultCache(cls) -> LocalAPICache:
 		'''
 		A local API cache that is preconfigured with default values designed to be used out of the box (batteries included).
 
@@ -231,62 +246,63 @@ class LocalAPICache:
 			cls._default_instance = cls(path=SciDDCacheManager.default_cache().path) # use defaults
 		return cls._default_instance
 
-	@property
-	def db_conn(self) -> sqlite3.Connection:
-		'''
-		An open connection to the SQLite database.
-		'''
-		if self._db is None:
-			self._initial_database_connection() # defines self._db
-		return self._db
+	# @property
+	# def db_conn(self) -> sqlite3.Connection:
+	# 	'''
+	# 	An open connection to the SQLite database.
+	# 	'''
+	# 	if self._db is None:
+	# 		self._initial_database_connection() # defines self._db
+	# 	return self._db
 
-	def _initial_database_connection(self):
+	def _initialize_database(self):
 		'''
-		Make the initial connection to the database.
+		Make the initial connection to the database, creating file/schema as needed.
 		'''
-		db_filepath = self.path / self.name
-		is_new_database = not db_filepath.exists()
+		#db_filepath = self.path / self.name
+		is_new_database = not self.dbFilepath.exists() # not db_filepath.exists()
 
-		#print(db_filepath)
-		if self.path.is_symlink(): # or os.path.islink(fp)
-			#print("is symlink")
-			if not os.path.exists(os.readlink(self.path)):
-				# broken link
-				raise Exception(f"The path where the SciDD cache is expected ('{self.path}') is symlink pointing to a target that is no longer there. " +
-			                    "Either remove the symlink or fix the destination.")
+		#with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
+		#	with contextlib.closing(connection()) cursor as cursor):
 
 		try:
-			self._db = sqlite3.connect(db_filepath)
+			connection = sqlite3.connect(self.dbFilepath, timeout=20)
 		except sqlite3.OperationalError as e:
 			if is_new_database:
 				raise Exception(f"Unable to create database at specified path ('{db_filepath}').")
 			else:
 				raise Exception(f"Found file at path '{path / self.name}', but am unable to open as an SQLite database.")
 
-		self._configure_db_connection(self.db_conn)
+		with contextlib.closing(connection):
+			# configure connection-level settings on the SQLite database
+			# ----------------------------------------------------------
+			#connection.isolation_level = None    # autocommit mode; transactions can be explicitly created with BEGIN/COMMIT statements
+			connection.row_factory = sqlite3.Row  # return dictionaries instead of tuples from SELECT statements
 
-		if is_new_database:
-			self._init_sqlite_db()
+			#self._configure_db_connection(self.db_conn)
 
-	def __del__(self):
-		''' Destructor method - close database connection when object is no longer needed. '''
-		# if we had an open SQLite connection, close it
-		if self._db:
-			self._db.close()
+			if is_new_database:
+				self._init_sqlite_db(connection)
 
-	def _configure_db_connection(self, dbconn):
-		'''
-		Configure connection-level settings on the SQLite database.
-		'''
-		# set database-specific settings
-		#dbconn.isolation_level = None    # autocommit mode; transactions can be explicitly created with BEGIN/COMMIT statements
-		dbconn.row_factory = sqlite3.Row # return dictionaries instead of tuples from SELECT statements
+	#def __del__(self):
+	#	''' Destructor method - close database connection when object is no longer needed. '''
+	#	# if we had an open SQLite connection, close it
+	#	if self._db:
+	#		self._db.close()
 
-	def _init_sqlite_db(self):
+	#def _configure_db_connection(self, dbconn):
+	#	'''
+	#	Configure connection-level settings on the SQLite database.
+	#	'''
+	#	# set database-specific settings
+	#	#dbconn.isolation_level = None    # autocommit mode; transactions can be explicitly created with BEGIN/COMMIT statements
+	#	dbconn.row_factory = sqlite3.Row # return dictionaries instead of tuples from SELECT statements
+
+	def _init_sqlite_db(self, connection:sqlite3.Connection):
 		'''
 		Initialize a new index database, e.g. create schema, initialize metadata.
 		'''
-		with contextlib.closing(self.db_conn.cursor()) as cursor:
+		with contextlib.closing(connection.cursor()) as cursor:
 
 			cursor.execute('''
 				CREATE TABLE metadata (
@@ -306,22 +322,26 @@ class LocalAPICache:
 				);''')
 
 			cursor.execute('''CREATE UNIQUE INDEX query_idx ON cache(query)''');
+			connection.commit()
 
 	def __getitem__(self, key):
 		'''
 		The cache is made to look like a key/value store.
 		'''
 		# this demonstrates a simple implementation: https://stackoverflow.com/a/47240886/2712652
-		value = self.db_conn.execute("SELECT json_response FROM cache WHERE query=?", (key,)).fetchone()
-		if value is None:
-			raise KeyError(key)
-		return value[0]
+		with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
+			with contextlib.closing(connection.cursor()) as cursor:
+				value = cursor.execute("SELECT json_response FROM cache WHERE query=?", (key,)).fetchone()
+				if value is None:
+					raise KeyError(key)
+				else:
+					return value[0]
 
 	def __setitem__(self, key, value):
 		'''
 		The cache is made to look like a key/value store.
 		'''
-		with contextlib.closing(self.db_conn.cursor()) as cursor:
-			cursor.execute("REPLACE INTO cache (query, json_response) VALUES (?,?);", (key, value))
-			self.db_conn.commit()
-
+		with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
+			with contextlib.closing(connection.cursor()) as cursor:
+				cursor.execute("REPLACE INTO cache (query, json_response) VALUES (?,?);", (key, value))
+				connection.commit()
