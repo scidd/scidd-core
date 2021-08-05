@@ -25,11 +25,6 @@ class SciDDCacheManagerBase(abc.ABC):
 		'''
 		pass
 
-	# @path.setter
-	# @abc.abstractmethod
-	# def path(self, new_value):
-	# 	pass
-
 	@property
 	@abc.abstractmethod
 	def pathWithinCache(self, sci_dd) -> os.PathLike:
@@ -180,58 +175,33 @@ class LocalAPICache:
 
 	_default_instance = None
 
-	def __init__(self, path:os.PathLike=pathlib.Path(".scidd_cache"), name:str="_SciDD_API_Cache.sqlite"):
+	def __init__(self, path:os.PathLike=pathlib.Path.home()/".scidd_cache", name:str="_SciDD_API_Cache.sqlite"):
 
 		self.dbFilepath = path / name # the full path + filename for the cache
 
 		# create database path if needed
-		if not os.path.exists(self.path):
+		if not path.exists():
 			try:
-				os.makedirs(self.path)
+				os.makedirs(path)
+			except FileExistsError as e:
+				logger.debug(f"Path '{path}' appears not to exist, but 'os.makedirs(path)' is raising FileExistsError: {e}")
 			except OSError as e:
 				raise OSError(f"Unable to create specified path '{path}'; error: {e} ")
 
-		if self.path.is_symlink(): # or os.path.islink(fp)
-			if not os.path.exists(os.readlink(self.path)):
+		if path.is_symlink(): # or os.path.islink(fp)
+			if not os.path.exists(os.readlink(path)):
 				# broken link
-				raise Exception(f"The path where the SciDD cache is expected ('{self.path}') is symlink pointing to a target that is no longer there. " +
+				raise Exception(f"The path where the SciDD cache is expected ('{path}') is symlink pointing to a target that is no longer there. " +
 			                    "Either remove the symlink or fix the destination.")
 
 		self._initialize_database()
 
-		#self.path = path	# path to database
-		#self.name = name	# database filename
-		#self._db = None
-
 	@property
 	def path(self) -> pathlib.Path:
 		'''
-		Returns the path where the cache lives.
+ 		The full path where the cache database can be found (not including the filename).
 		'''
 		return self.dbFilepath.parent
-
-
-# 	@property
-# 	def path(self) -> os.pathLike:
-# 		'''
-# 		The full path where the cache database can be found (not including the filename).
-# 		'''
-# 		return self._path
-#
-# 	@path.setter
-# 	def path(self, new_value:os.PathLike):
-# 		'''
-# 		The full path where the cache database can be found. The directory must exist before setting this value.
-#
-# 		Note that the path should be set before any access to the cache is made!
-# 		'''
-# 		if self._db is None:
-# 			raise ValueError(f"The path cannot be changed after the first connection to the database is made.")
-# 		if not new_value.exists():
-# 			raise ValueError(f"The path to place the cache database must previously exist; '{new_value}' coud not be found.")
-# 		if not os.access(new_value, os.W_OK | os.X_OK):
-# 			raise ValueError(f"The cache path provided is not writable: '{new_value}'")
-# 		self._path = new_value
 
 	@classmethod
 	def defaultCache(cls) -> LocalAPICache:

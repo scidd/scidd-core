@@ -9,6 +9,7 @@ import sys
 import bz2
 import pdb
 import gzip
+import time
 import shutil
 import urllib
 import pathlib
@@ -27,6 +28,18 @@ from .logger import scidd_logger as logger
 
 # list of file extensions that we treat as compressed files
 COMPRESSED_FILE_EXTENSIONS = [".gz", ".bz2", ".zip"]
+
+def set_file_time_to_last_modified(filepath, response):
+	'''
+	If the 'Last-Modified' header is found in the response, update the downloaded file's timestamp to that date.
+	'''
+	try:
+		srvLastModified = time.mktime(time.strptime(response.headers["Last-Modified"], "%a, %d %b %Y %H:%M:%S GMT"))
+		os.utime(path_to_write, (srvLastModified, srvLastModified))
+	except KeyError:
+		# "Last-Modified" header not present
+		pass
+
 
 class SciDD(): #, metaclass=SciDDMetaclass):
 	'''
@@ -400,10 +413,15 @@ class SciDDFileResource:
 
 			try:
 				# Ref: https://2.python-requests.org//en/latest/user/quickstart/#raw-response-content
-				with open(self.cache.path / self.pathWithinCache / self.filename, mode='wb') as f:
+				destination_file = self.cache.path / self.pathWithinCache / self.filename
+				with open(destination_file, mode='wb') as f:
 					for chunk in response.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
 						# chunk_size in bytes
 						f.write(chunk)
+
+				# set file time to that on server
+				set_file_time_to_last_modified(destination_file, response)
+
 			except requests.HTTPError as e:
 				# .. todo:: handle different errors appropriately
 				# - URL not found
@@ -428,7 +446,6 @@ class SciDDFileResource:
 		elif ext in [".zip"]:
 			self._download_zip_file(url=url, path=path)
 
-
 	def _download_gz_file(self, url:str=None, path:pathlib.Path=None):
 		'''
 		Private method that downloads a URL that points to a gzip compressed file. Resulting file is decompressed.
@@ -450,6 +467,9 @@ class SciDDFileResource:
 
 		with open(path_to_write, 'wb') as f:
 			shutil.copyfileobj(io.BytesIO(gzip.decompress(response.content)), f)
+
+		# set file time to that on server
+		set_file_time_to_last_modified(path_to_write, response)
 
 	def _download_bz2_file(self, url:str=None, path:pathlib.Path=None):
 		'''
@@ -473,6 +493,9 @@ class SciDDFileResource:
 		with open(path_to_write, 'wb') as f:
 			shutil.copyfileobj(io.BytesIO(bz2.decompress(response.content)), f)
 
+		set_file_time_to_last_modified(path_to_write, response)
+
+
 	def _download_zip_file(self, url:str=None, path:pathlib.Path=None):
 		'''
 		Private method that downloads a URL that points to a zip compressed file. Resulting file is decompressed.
@@ -494,3 +517,5 @@ class SciDDFileResource:
 		# note: zip files can contain multiple files
 		# todo(?) support extracting metadata for multiple files in a zip archive
 		ZipFile.extract(member=ZipFile(file=io.BytesIO(data)), path=path)
+
+		set_file_time_to_last_modified(path_to_write, response)
