@@ -27,7 +27,7 @@ from .resolver import Resolver
 from .logger import scidd_logger as logger
 
 # list of file extensions that we treat as compressed files
-COMPRESSED_FILE_EXTENSIONS = [".gz", ".bz2", ".zip"]
+COMPRESSED_DOT_FILE_EXTENSIONS = [".gz", ".bz2", ".zip"]
 
 def set_file_time_to_last_modified(filepath, response):
 	'''
@@ -235,7 +235,7 @@ class SciDDFileResource:
 	# 	The filename after removing any extensions related to compression (e.g. '.zip', '.bz2', '.gz').
 	# 	'''
 	# 	filename = self.filename
-	# 	for ext in COMPRESSED_FILE_EXTENSIONS:
+	# 	for ext in COMPRESSED_DOT_FILE_EXTENSIONS:
 	# 		if filename.endswith(ext)
 	# 			return filename[:-len(ext)]
 	# 	return filename
@@ -290,8 +290,9 @@ class SciDDFileResource:
 			# File was not found. If a compressed version exists, use that.
 			# If not, download the file.
 			#
-			for ext in COMPRESSED_FILE_EXTENSIONS:
-				path = expected_filepath.parent / f"{expected_filepath.name}.{ext}"
+			for ext in COMPRESSED_DOT_FILE_EXTENSIONS:
+				path = expected_filepath.parent / f"{expected_filepath.name}{ext}"
+				logger.debug(f"checking: {path}")
 				if path.exists():
 					self._filepath = path
 					return self._filepath
@@ -389,7 +390,7 @@ class SciDDFileResource:
 		url = self.url
 		ext = os.path.splitext(url)[1].lower() # file extension
 
-		target_file_is_compressed = ext in COMPRESSED_FILE_EXTENSIONS
+		target_file_is_compressed = ext in COMPRESSED_DOT_FILE_EXTENSIONS
 
 		if target_file_is_compressed and self.cache.decompressDownloads:
 			self._filepath = self._download_compressed_file(url=url, ext=ext, path=path) # <- decompresses file
@@ -422,7 +423,7 @@ class SciDDFileResource:
 
 				# File was not found. Try again with common file compression suffixes?
 				file_found = False
-				for ext in COMPRESSED_FILE_EXTENSIONS:
+				for ext in COMPRESSED_DOT_FILE_EXTENSIONS:
 					# where are you mr file?
 					if requests.head(url+ext).status_code == 200: # found file
 						url = url + ext
