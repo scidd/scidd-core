@@ -15,7 +15,7 @@ from typing import Union
 
 from .logger import scidd_logger as logger
 
-class SciDDCacheManagerBase(abc.ABC):
+class SciDDCacheManagerBase(metaclass=abc.ABCMeta):
 
 	@property
 	@abc.abstractmethod
@@ -35,6 +35,24 @@ class SciDDCacheManagerBase(abc.ABC):
 
 	def __repr__(self):
 		return "<{0}.{1} object at {2} path='{3}'>".format(self.__class__.__module__, self.__class__.__name__, hex(id(self)), self.path)
+
+	@property
+	def decompressDownloads(self) -> bool:
+		'''
+		If ``True``, downloaded data that is found compressed (e.g. .gz, .zip) will be decompressed into the cache. Default is ``False``.
+		'''
+		if not hasattr(self, '_decompressDownloads'):
+			self._decompressDownloads = False
+		return self._decompressDownloads
+
+	@decompressDownloads.setter
+	def decompressDownloads(self, new_value:bool):
+		if not hasattr(self, '_decompressDownloads'):
+			self._decompressDownloads = False
+		try:
+			self._decompressDownloads = bool(new_value)
+		except ValueError:
+			raise ValueError(f"The 'decompressDownloads' property requires a Boolean value.")
 
 	@abc.abstractproperty
 	def localAPICache(self) -> SciDDCacheManagerBase:
@@ -80,9 +98,8 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 
 		self._cache_parent_directory = path # creates directory if it doesn't exist
 
-
 	@classmethod
-	def default_cache(cls):
+	def defaultCache(cls):
 		'''
 		A cache manager that is preconfigured with default values designed to be used out of the box (batteries included).
 
@@ -177,7 +194,7 @@ class LocalAPICache:
 
 	def __init__(self, path:os.PathLike=pathlib.Path.home()/".scidd_cache", name:str="_SciDD_API_Cache.sqlite"):
 
-		self.dbFilepath = path / name # the full path + filename for the cache
+		self._dbFilepath = path / name # the full path + filename for the cache
 
 		# create database path if needed
 		if not path.exists():
@@ -197,6 +214,23 @@ class LocalAPICache:
 		self._initialize_database()
 
 	@property
+	def dbFilepath(self) -> os.PathLike:
+		'''
+		Returns the path of the SQLite database cache.
+		'''
+		# The main purpose of this method is to check that the database exists and
+		# create it if it doesn't or was deleted during the run of a program.
+
+		if self._dbFilepath.exists():
+			if self._dbFilepath.stat().st_size == 0: # size in bytes
+				self._dbFilepath.unlink()
+				self._initialize_database()
+		else:
+			self._initialize_database()
+
+		return self._dbFilepath
+
+	@property
 	def path(self) -> pathlib.Path:
 		'''
  		The full path where the cache database can be found (not including the filename).
@@ -213,7 +247,7 @@ class LocalAPICache:
 		There is only one instance of the default cache manager at any time, but it can be modified.
 		'''
 		if cls._default_instance is None:
-			cls._default_instance = cls(path=SciDDCacheManager.default_cache().path) # use defaults
+			cls._default_instance = cls(path=SciDDCacheManager.defaultCache().path) # use defaults
 		return cls._default_instance
 
 	# @property
@@ -230,13 +264,13 @@ class LocalAPICache:
 		Make the initial connection to the database, creating file/schema as needed.
 		'''
 		#db_filepath = self.path / self.name
-		is_new_database = not self.dbFilepath.exists() # not db_filepath.exists()
+		is_new_database = not self._dbFilepath.exists() # not db_filepath.exists()
 
 		#with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
 		#	with contextlib.closing(connection()) cursor as cursor):
 
 		try:
-			connection = sqlite3.connect(self.dbFilepath, timeout=20)
+			connection = sqlite3.connect(self._dbFilepath, timeout=20)
 		except sqlite3.OperationalError as e:
 			if is_new_database:
 				raise Exception(f"Unable to create database at specified path ('{db_filepath}').")
@@ -298,6 +332,10 @@ class LocalAPICache:
 		'''
 		The cache is made to look like a key/value store.
 		'''
+
+		if not self.dbFilepath.exists():
+			logger.debug("no db file found")
+
 		# this demonstrates a simple implementation: https://stackoverflow.com/a/47240886/2712652
 		with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
 			with contextlib.closing(connection.cursor()) as cursor:

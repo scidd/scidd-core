@@ -35,7 +35,7 @@ def set_file_time_to_last_modified(filepath, response):
 	'''
 	try:
 		srvLastModified = time.mktime(time.strptime(response.headers["Last-Modified"], "%a, %d %b %Y %H:%M:%S GMT"))
-		os.utime(path_to_write, (srvLastModified, srvLastModified))
+		os.utime(filepath, (srvLastModified, srvLastModified))
 	except KeyError:
 		# "Last-Modified" header not present
 		pass
@@ -206,7 +206,7 @@ class SciDDFileResource:
 	# Use this cache manager for all new SciDDs (that point to files, of course).
 	# Note that this is a class variable! Changing it will not change any
 	# previously set cache manager on existing SciDDFileResource objects.
-	_default_cache_manager = SciDDCacheManager.default_cache()
+	_default_cache_manager = SciDDCacheManager.defaultCache()
 
 	def __init__(self):
 		self._filepath = None # store local location
@@ -215,7 +215,7 @@ class SciDDFileResource:
 		self._filename_unique_identifier = None # a string used to disambiguate files with the same name in the same dataset release
 
 		if __class__._default_cache_manager is None:
-			self.cache = SciDDCacheManager.default_cache()
+			self.cache = SciDDCacheManager.defaultCache()
 		else:
 			self.cache = __class__._default_cache_manager
 
@@ -259,8 +259,17 @@ class SciDDFileResource:
 		if self._filename is None:
 			path = self.path # remove scheme
 			path = path.split(";")[0] # remove scheme-specific segment
-			self._filename = os.path.filenam(path)
+			self._filename = os.path.basename(path)
 		return self._filename
+
+	@filename.setter
+	def filename(self, new_filename:str):
+		'''
+		Note! Setting the ``filename`` property is considered an internal method and should *not* be used.
+		'''
+		# This is here so that when the filename property is set, "self._filepath" is returned to None to recalculate.
+		self._filename = new_filename
+		self._filepath = None
 
 	@property
 	def filepath(self) -> pathlib.Path:
@@ -270,25 +279,32 @@ class SciDDFileResource:
 		Note: Using autocomplete in an interactive environment (e.g. Jupyter notebook, iPython)
 		on a SciDD object will cause the associated file to be downloaded if it's not found on disk.
 		'''
-		# Note: this isn't
 		if self._filepath is None:
 			# already in cache?
 			expected_filepath = self.cache.path / self.pathWithinCache / self.filename
 			if expected_filepath.exists():
 				self._filepath = expected_filepath
 				#logger.debug(f'Found in cache: "{expected_filepath}"')
-			else:
-				# file not there, download
-				#logger.debug(f" -----> {self.cache.path / self.pathWithinCache}")
-				self.downloadTo(path=self.cache.path / self.pathWithinCache)
+				return self._filepath
 
-				# check again
-				if expected_filepath.exists():
-					self._filepath = expected_filepath
-				else:
-					raise NotImplementedError()
+			# File was not found. If a compressed version exists, use that.
+			# If not, download the file.
+			#
+			for ext in COMPRESSED_FILE_EXTENSIONS:
+				path = expected_filepath.parent / f"{expected_filepath.name}.{ext}"
+				if path.exists():
+					self._filepath = path
+					return self._filepath
 
+			# Not found; download the file.
+			#logger.debug(f" -----> {self.cache.path / self.pathWithinCache}")
+			expected_filepath = self.downloadTo(path=expected_filepath.parent) #self.cache.path / self.pathWithinCache)
+
+			# double check
+			if expected_filepath.exists():
 				self._filepath = expected_filepath
+			else:
+				raise NotImplementedError(f"Expected to find file at '{expected_filepath}, but not found ({self.filename=}).'")
 
 		return self._filepath
 
@@ -345,6 +361,10 @@ class SciDDFileResource:
 		:param path: the path to download the file to; does not include the filename
 		:returns: the full :py:attr:`filepath` to the file that is downloaded
 		'''
+
+		# In principle, this method should be the "choke point" of downloading data,
+		# i.e. no downloads should occur outside of this method.
+
 		logger.debug(f"downloading '{self.url}' to: '{path}'")
 		#raise Exception("break here to catch when files are being downloaded")
 
@@ -354,7 +374,7 @@ class SciDDFileResource:
 			path = pathlib.Path(path)
 
 		if self.isInCache(): # checks for zero length file; if found, deletes and returns False
-			return
+			return self.filepath
 
 		if os.path.lexists(path):
 			# 'lexists' returns True for broken symbolic links;
@@ -362,95 +382,122 @@ class SciDDFileResource:
 
 			# is this a broken link?
 			if path.exists() is False:
-				raise Exception(f"Tried to set up cache but found what appears to be a broken symbolic link: '{path}'")
+				raise Exception(f"Tried to set up a cache directory but found what appears to be a broken symbolic link: '{path}'")
 		else:
 			path.mkdir(parents=True)
 
 		url = self.url
 		ext = os.path.splitext(url)[1].lower() # file extension
 
-		if ext in COMPRESSED_FILE_EXTENSIONS:
-			self._download_compressed_file(url=url, ext=ext, path=path)
-		else:
-			#status = None
-			# File is not compressed on the remote server.
-			# Rather than read the whole thing into memory,
-			# stream the data straight to a file on disk (making sure there are no errors).
-			try:
-				response = requests.get(url, stream=True)
-			except requests.exceptions.ConnectionError as err:
-				if "HTTPSConnectionPool" in str(err):
-					if "Max retries exceeded with url" in str(err):
-						raise exc.InternetConnectionError(f"Could not connect to the host '{urllib.parse.urlparse(self.url).hostname}'; exceeded the maximum number of attempts. Are you connected to the internet or could the host be blocked for some reason?")
-					else:
-						raise NotImplementedError("Handle errors here!")
+		target_file_is_compressed = ext in COMPRESSED_FILE_EXTENSIONS
+
+		if target_file_is_compressed and self.cache.decompressDownloads:
+			self._filepath = self._download_compressed_file(url=url, ext=ext, path=path) # <- decompresses file
+			self._filename = p.name
+			return self.filepath
+
+		#status = None
+		# File is not compressed on the remote server.
+		# Rather than read the whole thing into memory,
+		# stream the data straight to a file on disk (making sure there are no errors).
+		try:
+			response = requests.get(url, stream=True) # make connection to remote server
+			destination_file = self.cache.path / self.pathWithinCache / os.path.basename(url) #self.filename
+			logger.debug(f"A {destination_file=}")
+		except requests.exceptions.ConnectionError as err:
+			if "HTTPSConnectionPool" in str(err):
+				if "Max retries exceeded with url" in str(err):
+					raise exc.InternetConnectionError(f"Could not connect to the host '{urllib.parse.urlparse(self.url).hostname}'; exceeded the maximum number of attempts. Are you connected to the internet or could the host be blocked for some reason?")
 				else:
 					raise NotImplementedError("Handle errors here!")
-			#logger.debug(f"=====> {response} , {response.status_code}")
-			try:
-				# raise "requests.HTTPError" exception if 400 <= status_code <= 600
-				response.raise_for_status()
-				#status = response.status_code
-			except requests.HTTPError:
-				if response.status_code == 404:
-					logger.debug(f"404 File not found (url='{url}')")
+			else:
+				raise NotImplementedError("Handle errors here!")
 
-					# File was not found. Try again with common file compression suffixes?
-					for ext in COMPRESSED_FILE_EXTENSIONS:
-						# where are you mr file?
-						file_found = False
-						if requests.head(url+ext).status_code == 200:
-							url = url + ext
-							file_found = True
-							break # file will be handled below
-					if file_found:
+		# check status to remote connection (file found? not found?)
+		try:
+			response.raise_for_status() # request "requests.HTTPError" exception if 400 <= status_code <= 600
+		except requests.HTTPError:
+			if response.status_code == 404:
+				logger.debug(f"404 File not found (url='{url}')")
+
+				# File was not found. Try again with common file compression suffixes?
+				file_found = False
+				for ext in COMPRESSED_FILE_EXTENSIONS:
+					# where are you mr file?
+					if requests.head(url+ext).status_code == 200: # found file
+						url = url + ext
+						file_found = True
+
 						logger.warning(f"The Trillian API expected a file to be located at '{url[0:-len(ext)]}'; found instead at '{url}'.")
-						self._download_compressed_file(url=url, ext=ext, path=path)
-						return
-					else:
-						logger.warning(f"No file was found as expected at '{url}'.")
-						raise exc.FileResourceCouldNotBeFound(f"No file found where the Trillian API service expected to be found (even after looking for compressed versions of the file ('{url}').")
+						if self.cache.decompressDownloads:
+							self._filepath = self._download_compressed_file(url=url, ext=ext, path=path)
+							self._filename = p.name
+							return self.filepath
+						else:
+							response = requests.get(url, stream=True)
+							self.filename = os.path.basename(url) # update filename to have the compressed extension
+							destination_file = self.cache.path / self.pathWithinCache / self._filename
+							logger.debug(f"{destination_file=}")
+							logger.debug(f"{url=}")
+							# download below
+						break
 
-			try:
-				# Ref: https://2.python-requests.org//en/latest/user/quickstart/#raw-response-content
-				destination_file = self.cache.path / self.pathWithinCache / self.filename
-				with open(destination_file, mode='wb') as f:
-					for chunk in response.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
-						# chunk_size in bytes
-						f.write(chunk)
+				if file_found is False:
+					logger.warning(f"No file was found as expected at '{url}' or with any known compression extension.")
+					raise exc.FileResourceCouldNotBeFound(f"No file found where the Trillian API service expected to be found (even after looking for compressed versions of the file ('{url}').")
+			else:
+				raise NotImplementedError(f"Encountered status {response.status_code} in file download request, but not handled.")
 
-				# set file time to that on server
-				set_file_time_to_last_modified(destination_file, response)
+		# file found, download
+		try:
+			# Ref: https://2.python-requests.org//en/latest/user/quickstart/#raw-response-content
+			#destination_file = self.cache.path / self.pathWithinCache / self.filename
+			# stream data straight to disk instead of loading whole file into RAM
+			with open(destination_file, mode='wb') as f:
+				for chunk in response.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
+					# chunk_size in bytes
+					f.write(chunk)
 
-			except requests.HTTPError as e:
-				# .. todo:: handle different errors appropriately
-				# - URL not found
-				# - network error
-				# - etc.
-				raise NotImplementedError()
+			# set file time to that on server
+			set_file_time_to_last_modified(destination_file, response)
+			return destination_file
 
-	def _download_compressed_file(self, url:str, ext:str, path:os.pathLike):
+		except requests.HTTPError as e:
+			# .. todo:: handle different errors appropriately
+			# - URL not found
+			# - network error
+			# - etc.
+			raise NotImplementedError()
+
+	def _download_compressed_file(self, url:str, ext:str, path:os.pathLike) -> os.pathLike:
 		'''
-		Download the provided file that's compressed on the remote server.
+		Download the provided file that's compressed on the remote server and decompress the returned file.
 
 		This is an internal implementation detail that should not be called outside of this class and is subject to change or removal.
+
 		:param url: the full URL to the file to be downloaded
-		:param ext: the file's extension, incuding the leading fullstop, e.g. `.gz`
+		:param ext: the file's extension, including the leading fullstop, e.g. `.gz`
 		:param path: the local filesystem path to down the file into
+		:returns: path (including filename) the file was downloaded to
 		'''
 		# File is compressed on remote server. Download and decompress.
 		if ext in [".gz"]:
-			self._download_gz_file(url=url, path=path)
+			return self._download_gz_file(url=url, path=path)
 		elif ext in [".bz2", ".bzip2"]:
-			self._download_bz2_file(url=url, path=path)
+			return self._download_bz2_file(url=url, path=path)
 		elif ext in [".zip"]:
-			self._download_zip_file(url=url, path=path)
+			return self._download_zip_file(url=url, path=path)
+		else:
+			raise NotImplementedError(f"Files compressed with the extension '{ext}' are not yet supported.")
 
-	def _download_gz_file(self, url:str=None, path:pathlib.Path=None):
+	def _download_gz_file(self, url:str, path:pathlib.Path):
 		'''
 		Private method that downloads a URL that points to a gzip compressed file. Resulting file is decompressed.
+
+		:param url: the URL to download as a string
+		:param path: the local location where to download the file to
+		:returns: path (including filename) the file was downloaded to
 		'''
-		assert url is not None, "A URL must be provided to download."
 		response = requests.get(url=url)
 		try:
 			response.raise_for_status()
@@ -471,11 +518,16 @@ class SciDDFileResource:
 		# set file time to that on server
 		set_file_time_to_last_modified(path_to_write, response)
 
-	def _download_bz2_file(self, url:str=None, path:pathlib.Path=None):
+		return path_to_write
+
+	def _download_bz2_file(self, url:str, path:pathlib.Path):
 		'''
 		Private method that downloads a URL that points to a bz2 compressed file. Resulting file is decompressed.
+
+		:param url: the URL to download as a string
+		:param path: the local location where to download the file to
+		:returns: path (including filename) the file was downloaded to
 		'''
-		assert url is not None, "A URL must be provided to download."
 		response = requests.get(url=url)
 		try:
 			response.raise_for_status()
@@ -495,12 +547,16 @@ class SciDDFileResource:
 
 		set_file_time_to_last_modified(path_to_write, response)
 
+		return path_to_write
 
-	def _download_zip_file(self, url:str=None, path:pathlib.Path=None):
+	def _download_zip_file(self, url:str, path:pathlib.Path) -> os.pathLike:
 		'''
 		Private method that downloads a URL that points to a zip compressed file. Resulting file is decompressed.
+
+		:param url: the URL to download as a string
+		:param path: the local location where to download the file to
+		:returns: path (including filename) the file was downloaded to
 		'''
-		assert url is not None, "A URL must be provided to download."
 		response = requests.get(url=url)
 		try:
 			response.raise_for_status()
@@ -519,3 +575,5 @@ class SciDDFileResource:
 		ZipFile.extract(member=ZipFile(file=io.BytesIO(data)), path=path)
 
 		set_file_time_to_last_modified(path_to_write, response)
+
+		return path_to_write
