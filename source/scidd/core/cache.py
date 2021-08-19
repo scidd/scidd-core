@@ -25,7 +25,6 @@ class SciDDCacheManagerBase(metaclass=abc.ABCMeta):
 		'''
 		pass
 
-	@property
 	@abc.abstractmethod
 	def pathWithinCache(self, sci_dd) -> os.PathLike:
 		'''

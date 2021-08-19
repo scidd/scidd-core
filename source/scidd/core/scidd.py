@@ -212,7 +212,9 @@ class SciDDFileResource:
 		self._filepath = None # store local location
 		self._filename = None # cache the filename derived from the identifier
 		self.read_only_caches = list() # list of SciDDCacheManager objects that point to read-only caches
-		self._filename_unique_identifier = None # a string used to disambiguate files with the same name in the same dataset release
+
+		# .. todo:: this doesn't seem to be used anywhere.
+		#self._filename_unique_identifier = None # a string used to disambiguate files with the same name in the same dataset release
 
 		if __class__._default_cache_manager is None:
 			self.cache = SciDDCacheManager.defaultCache()
@@ -281,12 +283,11 @@ class SciDDFileResource:
 		'''
 		if self._filepath is None:
 			# already in cache?
-			expected_filepath = self.cache.path / self.pathWithinCache / self.filename
+			expected_filepath = self.cache.path / self.pathWithinCache() / self.filename
 			if expected_filepath.exists():
 				self._filepath = expected_filepath
 				#logger.debug(f'Found in cache: "{expected_filepath}"')
 				return self._filepath
-
 			# File was not found. If a compressed version exists, use that.
 			# If not, download the file.
 			#
@@ -316,16 +317,25 @@ class SciDDFileResource:
 		'''
 		return os.splitext(self.filename)[1]
 
-	@property
-	def pathWithinCache(self) -> pathlib.Path:
+	def pathWithinCache(self, cache:SciDDCacheManagerBase=None) -> pathlib.Path:
 		'''
-		Returns the path where this file should be located for the currently set cache manager (``self.cache``).
+		Returns the path where this resource should be placed/found for the given cache manager.
+
+		A SciDD is an "abstract" representation of the data. A file (in this case) can be located
+		in multiple caches managed by the same program. The dictionary below stores the path
+		location within each cache it encounters (i.e. relative to the top level of the cache).
+
+		Usually the default cache manager is the right choice and the parameter can be omitted.
+
+		:param cache: an object that implements the ``scidd.core.SciDDCacheManagerBase`` protocol
 		'''
+		if cache is None:
+			cache = self.cache
 		try:
-			return self._path_within_cache[self.cache]
+			return self._path_within_cache[cache]
 		except KeyError:
-			path = self.cache.pathWithinCache(sci_dd=self)
-			self._path_within_cache[self.cache] = path
+			path = cache.pathWithinCache(sci_dd=self)
+			self._path_within_cache[cache] = path
 			assert not str(path).startswith("/"), "This causes problems when joining paths."
 			return path
 
@@ -337,7 +347,7 @@ class SciDDFileResource:
 		In this case, the file will be deleted and ``False`` will be returned.
 		'''
 		# If the file is found, sets self._filepath if not already set.
-		full_path = self.cache.path / self.pathWithinCache / self.filename
+		full_path = self.cache.path / self.pathWithinCache() / self.filename
 		if full_path.exists():
 			if full_path.stat().st_size == 0:
 				# possible error in earlier run
@@ -370,7 +380,7 @@ class SciDDFileResource:
 		#raise Exception("break here to catch when files are being downloaded")
 
 		if path is None:
-			path = self.cache.path / self.pathWithinCache
+			path = self.cache.path / self.pathWithinCache()
 		elif isinstance(path, str):
 			path = pathlib.Path(path)
 
@@ -403,7 +413,7 @@ class SciDDFileResource:
 		# stream the data straight to a file on disk (making sure there are no errors).
 		try:
 			response = requests.get(url, stream=True) # make connection to remote server
-			destination_file = self.cache.path / self.pathWithinCache / os.path.basename(url) #self.filename
+			destination_file = self.cache.path / self.pathWithinCache() / os.path.basename(url) #self.filename
 			logger.debug(f"A {destination_file=}")
 		except requests.exceptions.ConnectionError as err:
 			if "HTTPSConnectionPool" in str(err):
@@ -437,7 +447,7 @@ class SciDDFileResource:
 						else:
 							response = requests.get(url, stream=True)
 							self.filename = os.path.basename(url) # update filename to have the compressed extension
-							destination_file = self.cache.path / self.pathWithinCache / self._filename
+							destination_file = self.cache.path / self.pathWithinCache() / self._filename
 							logger.debug(f"{destination_file=}")
 							logger.debug(f"{url=}")
 							# download below
@@ -452,7 +462,7 @@ class SciDDFileResource:
 		# file found, download
 		try:
 			# Ref: https://2.python-requests.org//en/latest/user/quickstart/#raw-response-content
-			#destination_file = self.cache.path / self.pathWithinCache / self.filename
+			#destination_file = self.cache.path / self.pathWithinCache() / self.filename
 			# stream data straight to disk instead of loading whole file into RAM
 			with open(destination_file, mode='wb') as f:
 				for chunk in response.iter_content(chunk_size=io.DEFAULT_BUFFER_SIZE):
