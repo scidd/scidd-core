@@ -48,9 +48,39 @@ class API:
 			params = list()
 
 		with requests.Session() as http_session:
-		#	try:
-			response = http_session.get(self.base_url + path, params=params)
-			response.raise_for_status()
+			try:
+				response = http_session.get(self.base_url + path, params=params)
+			except requests.exceptions.ConnectionError as e:
+				if "Max retries exceeded" in str(e):
+					raise Exception(f"Unable to reach the API server; is the server down?\n{e}")
+				else:
+					raise e
+
+			status_code = None
+			try:
+				response.raise_for_status()
+			except requests.HTTPError as e:
+				status_code = e.response.status_code
+				logger.debug(f"HTTP status code={status_code}")
+
+				# "Absorb" the exception so the trace doesn't go all the way down
+				# to the requests package, then check for and raise a custom error below.
+				pass
+
+			if status_code is None:
+				# no error occurred
+				pass
+			elif status_code == 500: # "Server Error"
+				# a problem occurred on the server returning the response
+				raise exc.ErrorInAccessingAPI("\n".join([
+					f"An error occurred on the server in accessing the API.",
+					f"Please contact Demitri Muna <demitri.muna@utsa.edu> with this full error message.",
+					f"URL: {response.url}",
+					"Response:",
+					f"{json.dumps(response.json(), indent=4)}"
+				]))
+			else:
+				raise Exception(f"Unhandled HTTP error status code: {status_code}")
 
 		return response.json()
 
@@ -75,7 +105,40 @@ class API:
 		if headers is None:
 			header = dict()
 
-		with requests.Session() as http_session:
-			response = http_session.post(self.base_url + path, params=params, data=data)
-
 		raise NotImplementedError()
+
+		with requests.Session() as http_session:
+			try:
+				response = http_session.post(self.base_url + path, params=params, data=data)
+			except requests.exceptions.ConnectionError as e:
+				if "Max retries exceeded" in str(e):
+					raise Exception(f"Unable to reach the API server; is the server down?\n{e}")
+				else:
+					raise e
+
+			status_code = None
+			try:
+				response.raise_for_status()
+			except requests.HTTPError as e:
+				status_code = e.response.status_code
+				logger.debug(f"HTTP status code={status_code}")
+
+				# "Absorb" the exception so the trace doesn't go all the way down
+				# to the requests package, then check for and raise a custom error below.
+				pass
+
+			if status_code is None:
+				# no error occurred
+				pass
+			elif status_code == 500: # "Server Error"
+				# a problem occurred on the server returning the response
+				raise exc.ErrorInAccessingAPI("\n".join([
+					f"An error occurred on the server in accessing the API.",
+					f"Please contact Demitri Muna <demitri.muna@utsa.edu> with this full error message.",
+					f"URL: {response.url}",
+					"Response:",
+					f"{json.dumps(response.json(), indent=4)}"
+				]))
+			else:
+				raise Exception(f"Unhandled HTTP error status code: {status_code}")
+
