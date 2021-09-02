@@ -319,7 +319,7 @@ class SciDDFileResource:
 
 	def pathWithinCache(self, cache:SciDDCacheManagerBase=None) -> pathlib.Path:
 		'''
-		Returns the path where this resource should be placed/found for the given cache manager.
+		Returns the subpath within the cache where this resource should be placed/found for the given cache manager.
 
 		A SciDD is an "abstract" representation of the data. A file (in this case) can be located
 		in multiple caches managed by the same program. The dictionary below stores the path
@@ -375,6 +375,9 @@ class SciDDFileResource:
 
 		# In principle, this method should be the "choke point" of downloading data,
 		# i.e. no downloads should occur outside of this method.
+
+		# Uncomment this line during debugging to get a trace of where files are being downloaded.
+		#raise Exception(f"Downloading to: {path}")
 
 		logger.debug(f"downloading '{self.url}' to: '{path}'")
 		#raise Exception("break here to catch when files are being downloaded")

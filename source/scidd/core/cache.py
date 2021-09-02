@@ -61,7 +61,7 @@ class SciDDCacheManagerBase(metaclass=abc.ABCMeta):
 		pass
 
 	@staticmethod
-	def conforms_to_interface(instance) -> bool:
+	def conformsToInterface(instance) -> bool:
 		'''
 		A utility method for other classes to check if they are compliant with this class' interface.
 
@@ -69,8 +69,9 @@ class SciDDCacheManagerBase(metaclass=abc.ABCMeta):
 		'''
 		# check required properties
 		for prop in ['path', 'localAPICache']:
+			hasattr(instance, prop) # Oddly, returns 'False' the first time, 'True' the second (if available).
 			if not hasattr(instance, prop):
-				raise TypeError(f"This class is a virtual subclass of scidd.SciDDCacheManagerBase; it must implement the property '{prop}'.")
+				raise TypeError(f"The class '{instance.__class__}' is a virtual subclass of scidd.SciDDCacheManagerBase; it must implement the property '{prop}'.")
 
 		# check callable methods
 		if not callable(instance.pathWithinCache):
