@@ -306,7 +306,7 @@ class SciDDFileResource:
 			if expected_filepath.exists():
 				self._filepath = expected_filepath
 			else:
-				raise NotImplementedError(f"Expected to find file at '{expected_filepath}, but not found ({self.filename=}).'")
+				raise NotImplementedError(f"Expected to find file at '{expected_filepath}, but not found (self.filename={self.filename}).'")
 
 		return self._filepath
 
@@ -417,7 +417,7 @@ class SciDDFileResource:
 		try:
 			response = requests.get(url, stream=True) # make connection to remote server
 			destination_file = self.cache.path / self.pathWithinCache() / os.path.basename(url) #self.filename
-			logger.debug(f"A {destination_file=}")
+			logger.debug(f"A destination_file='{destination_file}'")
 		except requests.exceptions.ConnectionError as err:
 			if "HTTPSConnectionPool" in str(err):
 				if "Max retries exceeded with url" in str(err):
@@ -425,7 +425,7 @@ class SciDDFileResource:
 				else:
 					raise NotImplementedError("Handle errors here!")
 			else:
-				raise NotImplementedError("Handle errors here!")
+				raise NotImplementedError(f"Error ocurred in attempting to download file at '{url}'. Error: {str(err)}.")
 
 		# check status to remote connection (file found? not found?)
 		try:
@@ -451,8 +451,8 @@ class SciDDFileResource:
 							response = requests.get(url, stream=True)
 							self.filename = os.path.basename(url) # update filename to have the compressed extension
 							destination_file = self.cache.path / self.pathWithinCache() / self._filename
-							logger.debug(f"{destination_file=}")
-							logger.debug(f"{url=}")
+							logger.debug(f"destination_file={destination_file}")
+							logger.debug(f"url={url}")
 							# download below
 						break
 

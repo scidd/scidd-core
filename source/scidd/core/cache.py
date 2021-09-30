@@ -336,8 +336,10 @@ class LocalAPICache:
 		if not self.dbFilepath.exists():
 			logger.debug("no db file found")
 
+		# use URI method to supply connection options (here, read-only)
+
 		# this demonstrates a simple implementation: https://stackoverflow.com/a/47240886/2712652
-		with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
+		with contextlib.closing(sqlite3.connect(f"file:{self.dbFilepath}?mode=ro", uri=True, timeout=30)) as connection:
 			with contextlib.closing(connection.cursor()) as cursor:
 				value = cursor.execute("SELECT json_response FROM cache WHERE query=?", (key,)).fetchone()
 				if value is None:
@@ -349,7 +351,11 @@ class LocalAPICache:
 		'''
 		The cache is made to look like a key/value store.
 		'''
-		with contextlib.closing(sqlite3.connect(self.dbFilepath, timeout=20)) as connection:
+
+		# isolation_level=None puts the connection in autocommit mode
+
+		with contextlib.closing(sqlite3.connect(self.dbFilepath, isolation_level=None, timeout=30)) as connection:
 			with contextlib.closing(connection.cursor()) as cursor:
+				cursor.execute('pragma journal_mode=wal') # https://stackoverflow.com/questions/47250220/using-sqlite-with-wal
 				cursor.execute("REPLACE INTO cache (query, json_response) VALUES (?,?);", (key, value))
-				connection.commit()
+				#connection.commit() # not needed when isolation_level=None
