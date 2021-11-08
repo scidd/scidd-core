@@ -5,6 +5,7 @@ from __future__ import annotations # remove in Python 4.0
 
 import io
 import os
+import re
 import sys
 import bz2
 import pdb
@@ -138,9 +139,62 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 	@property
 	def path(self) -> str:
 		'''
-		Returns the SciDD as a string without the scheme prefix (i.e. the ``scidd:`` prefix is removed).
+		Returns the path component of the SciDD URN.
+
+		This is the component after the schema ("scidd") and excludes the path parameters,
+		query component, and fragment, each of which are optional.
 		'''
-		return str(self).replace('scidd:', '')
+		# SciDD is [schema]:[path];[path parameters]?[query component]
+		#
+		re_matched = False
+		s = str(self).replace('scidd:/', '')
+
+		# Check the optional components are present; remove them if so.
+		# Since these are special characters in URNs, if they appear as values
+		# they would have to be URL-encoded, so it's safe to split on them.
+
+		# remove fragment
+		if "#" in s:
+			s = s.split("#")[0]
+
+		# remove query
+		if "?" in s:
+			s = s.split("?")[0]
+
+		# remove path parameters
+		if ";" in s:
+			s = s.split(";")[0]
+
+		return s
+
+		#return str(self).replace('scidd:', '')
+
+	def pathParameters(self, field:str=None) -> str:
+		'''
+		Returns the optional component of the SciDD URN that is part of the path after the ";" delimiter.
+
+		The path parameters component is used to indicate differentiating information specific
+		to the indicated resource, and appears in the form "field=value" or, when multiple field/values are
+		present, "field1=value1,field2=value2".
+
+		Returns "None" is the component is not present.
+
+		:param field: if present, only return the value for the requested field
+		'''
+		match = re.search("scidd:/([^;?#]+)(;[^?#\s]+)?(\?[^#\s]+)?(#.+)?", str(self))
+		if match:
+			#logger.debug(f"found {match.groups()}")
+			params = match.group(2).lstrip(";")
+			if field:
+				for x in params.split(","):
+					key,value = x.split("=")
+					if key == field:
+						return value
+					return None
+			else:
+				return params
+		else:
+			return None
 
 	@property
 	def fragment(self) -> str:
