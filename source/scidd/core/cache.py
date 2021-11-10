@@ -170,7 +170,7 @@ class SciDDCacheManager(SciDDCacheManagerBase):
 			assert not p.startswith("/"), "This causes problems!"
 
 			# remove the "/file/" component; it's redundant
-			match = re.search("^([^/]+)/file/(.+)", p)
+			match = re.search(r"^([^/]+)/file/(.+)", p)
 			if match:
 				p = f"{match.group(1)}/{match.group(2)}"
 			sci_dd._path_within_cache[self] = p

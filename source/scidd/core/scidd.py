@@ -181,20 +181,21 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 
 		:param field: if present, only return the value for the requested field
 		'''
-		match = re.search("scidd:/([^;?#]+)(;[^?#\s]+)?(\?[^#\s]+)?(#.+)?", str(self))
+		match = re.search(r"scidd:/([^;?#]+)(;[^?#\s]+)?(\?[^#\s]+)?(#.+)?", str(self))
 		if match:
 			#logger.debug(f"found {match.groups()}")
-			params = match.group(2).lstrip(";")
-			if field:
-				for x in params.split(","):
-					key,value = x.split("=")
-					if key == field:
-						return value
-					return None
-			else:
-				return params
-		else:
-			return None
+			path_params = match.group(2)
+			if path_params:
+				params = path_params.lstrip(";")
+				if field:
+					for x in params.split(","):
+						key,value = x.split("=")
+						if key == field:
+							return value
+						#return None
+				else:
+					return params
+		return None
 
 	@property
 	def fragment(self) -> str:
