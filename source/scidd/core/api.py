@@ -1,15 +1,20 @@
 
 import os
+import json
+import logging
 import pathlib
 from typing import Dict, Union
 
 import requests
 
-from scidd.core.utilities.designpatterns import singleton
+from .exc import ErrorInAccessingAPI
+from scidd.core.utilities.designpatterns import singleton,SingletonMeta
 
-@singleton
-class API:
+logger = logging.getLogger("scidd.core")
 
+#@singleton
+#class API:
+class API(metaclass=SingletonMeta):
 	def __init__(self, host:str="api.trillianverse.org", port:int=443):
 
 		self.host = host
@@ -72,7 +77,7 @@ class API:
 				pass
 			elif status_code == 500: # "Server Error"
 				# a problem occurred on the server returning the response
-				raise exc.ErrorInAccessingAPI("\n".join([
+				raise ErrorInAccessingAPI("\n".join([
 					f"An error occurred on the server in accessing the API.",
 					f"Please contact Demitri Muna <demitri.muna@utsa.edu> with this full error message.",
 					f"URL: {response.url}",
@@ -132,7 +137,7 @@ class API:
 				pass
 			elif status_code == 500: # "Server Error"
 				# a problem occurred on the server returning the response
-				raise exc.ErrorInAccessingAPI("\n".join([
+				raise ErrorInAccessingAPI("\n".join([
 					f"An error occurred on the server in accessing the API.",
 					f"Please contact Demitri Muna <demitri.muna@utsa.edu> with this full error message.",
 					f"URL: {response.url}",

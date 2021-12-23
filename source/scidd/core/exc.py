@@ -25,3 +25,7 @@ class FileResourceCouldNotBeFound(Exception):
 
 class InternetConnectionError(Exception):
 	pass
+
+class ErrorInAccessingAPI(Exception):
+	pass
+

@@ -69,6 +69,13 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 		'''
 		SciDD is a factory class; if the prefix is identified as having a subclass dedicated to it, that subclass is instantiated.
 		'''
+
+		# .. todo:: If value is already a SciDD, return it instead of creating a new one.
+		# This way a string or a SciDD object can be used to initialize.
+		#
+		# The below is intended to return the most specialized object it can.
+		# It may not work for string values?
+
 		# Useful ref: https://stackoverflow.com/a/5953974/2712652
 		if type(cls) == type(SciDD):
 			if str(sci_dd).startswith("scidd:/astro"):
@@ -231,7 +238,7 @@ class SciDD(): #, metaclass=SciDDMetaclass):
 		raise NotImplementedError()
 
 	@classmethod
-	def fromFilename(cls, filename:str, domain:str, allow_multiple_results=False) -> SciDD:
+	def fromFilename(cls, domain:str, filename:str, allow_multiple_results=False) -> SciDD:
 		'''
 		A factory method that attempts to return a SciDD identifier from a filename alone; depends on domain-specific resolvers.
 
