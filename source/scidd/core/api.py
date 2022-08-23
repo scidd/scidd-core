@@ -1,5 +1,6 @@
 
 import os
+import pdb
 import json
 import logging
 import pathlib
@@ -17,15 +18,15 @@ logger = logging.getLogger("scidd.core")
 class API(metaclass=SingletonMeta):
 	def __init__(self, host:str="api.trillianverse.org", port:int=443):
 
-		self.host = host
+		self._host = host
 		self.port = port
 
-		if host is None and "SCIDD_API_HOST" in os.environ:
-			self.host = os.environ["SCIDD_API_HOST"]
-		if port is None and "SCIDD_API_PORT" in os.environ:
-			self.port = os.environ["SCIDD_API_PORT"]
+		if "SCIDD_API_HOST" in os.environ:
+			self._host = os.environ["SCIDD_API_HOST"]
+		if "SCIDD_API_PORT" in os.environ:
+			self.port = int(os.environ["SCIDD_API_PORT"])
 
-		if self.host in ["127.0.0.1", "localhost"]:
+		if self._host in ["127.0.0.1", "localhost"]:
 			self.scheme = "http://" # for development
 		else:
 			self.scheme = "https://"
@@ -36,6 +37,16 @@ class API(metaclass=SingletonMeta):
 		Returns the base URL for the API, e.g. "https://api.trillianverse.org".
 		'''
 		return f"{self.scheme}{self.host}:{self.port}"
+
+	@property
+	def host(self) -> str:
+		return self._host
+
+	@host.setter
+	def host(self, new_host):
+		self._host = new_host
+		if new_host in ["127.0.0.1", "localhost"]:
+			self.scheme = "http://" # for development
 
 	def get(self, path:Union[str, pathlib.Path], params:dict=None, headers:dict=None) -> dict:
 		'''
