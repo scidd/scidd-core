@@ -98,6 +98,13 @@ class API(metaclass=SingletonMeta):
 			else:
 				raise Exception(f"Unhandled HTTP error status code: {status_code}")
 
+		# check if we hit the server cache
+		try:
+			if response.headers["X-Proxy-Cache"] == "HIT":
+				logger.debug(f"== CACHE HIT == The response was found in the Nginx proxy cache, not calculated by the API.")
+		except:
+			pass
+
 		return response.json()
 
 	def post(self, path:Union[str, pathlib.Path], params:dict=None, data:dict=None, headers:Dict[str,str]=None) -> dict:
